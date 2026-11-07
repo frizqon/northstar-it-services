@@ -41,11 +41,11 @@ export function ServicesSection({ services, email }: ServicesSectionProps): JSX.
         </div>
 
         <div class="service-grid">
-          {services.map((service) => {
+          {services.map((service, index) => {
             const deliverables = getServiceDeliverables(service.number);
 
             return (
-              <article class="service-card" key={service.number}>
+              <article class="service-card" key={index}>
                 <div class="service-top">
                   <span class="service-number">{service.number}</span>
                   <span class="service-tag">{service.tag}</span>

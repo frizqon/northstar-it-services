@@ -6,8 +6,8 @@ Modern IT services landing page with an integrated Preact Content Studio (CMS), 
 
 ## Architecture & Stack
 
-- **Frontend**: Astro static site with server-rendered Preact islands and accessible semantic markup.
-- **CMS Studio**: Preact single-page application at `/admin/` with tabbed form editors.
+- **Frontend**: Astro static site with Preact islands. Default content is rendered at build time; CMS content hydrates from `/api/content`.
+- **CMS Studio**: Preact single-page application at `/admin/` with tabbed form editors and a contact inbox.
 - **Backend / API**: Hono framework running on Cloudflare Workers (`/api/*`).
 - **Database**: Neon Serverless Postgres (`site_content` singleton JSONB schema).
 - **Media Storage**: Neon Object Storage (S3-compatible) with browser-direct presigned POST forms.
@@ -96,11 +96,13 @@ neonctl projects create --name northstar-it-services --region-id aws-ap-southeas
 neonctl connection-string --pooled
 ```
 
-Apply the database schema directly via `neonctl` (or `psql`):
+Apply the full schema from `schema.sql` (site content + contact messages + indexes) via `neonctl` (or `psql`):
 
 ```sh
-neonctl sql "CREATE TABLE IF NOT EXISTS site_content (id integer PRIMARY KEY CHECK (id = 1), content jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());"
+neonctl sql "$(cat schema.sql)"
 ```
+
+The Worker no longer creates or alters tables at runtime. Run the schema before deploying the contact inbox feature.
 
 ---
 
@@ -162,9 +164,10 @@ npm run dev
 1. Open `/admin/` in your browser.
 2. Sign in using your `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 3. Edit content across **Overview**, **Hero**, **Services**, **Projects**, **About**, and **Contact & SEO**.
-4. Upload project images directly (JPEG, PNG, WebP, AVIF up to 8 MB) via secure signed POST forms.
-5. Click **Save changes** to persist changes immediately to Neon Postgres.
-6. Click **Sign out** to invalidate the session cookie.
+4. Review inbound contact messages in the **Messages** tab and update their status.
+5. Upload project images directly (JPEG, PNG, WebP, AVIF up to 8 MB) via secure signed POST forms.
+6. Click **Save changes** to persist changes immediately to Neon Postgres.
+7. Click **Sign out** to invalidate the session cookie.
 
 ---
 
@@ -172,8 +175,8 @@ npm run dev
 
 - **Host Header Spoofing Protected**: Environment mode strictly relies on explicit `ENVIRONMENT` binding (`wrangler.toml` enforces `production`).
 - **Timing-Safe Auth**: Admin password verification uses constant-time string comparison (`timingSafeEqual`).
-- **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute sliding window per IP.
-- **Strict CSP & Security Headers**: Enforces `nosniff`, `DENY` framing, `strict-origin`, and a hardened `Content-Security-Policy`.
+- **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
+- **Strict CSP & Security Headers**: The Worker sets headers for `/api/*`; `public/_headers` applies the same CSP, HSTS, `nosniff`, and `DENY` framing to static HTML and assets.
 - **Canonical Media Extensions**: S3 uploads enforce canonical extensions based on validated MIME types.
 - **Payload Size Limiter**: API endpoints enforce a 1 MB body limit to thwart JSON DoS.
 - **Safe URL Sanitization**: Project images validate against `javascript:` and arbitrary schemes before rendering.

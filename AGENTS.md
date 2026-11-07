@@ -13,7 +13,7 @@ This document defines the strict development rules, architectural standards, sec
 
 ## 2. 🏗️ Tech Stack & Architecture Overview
 
-- **Framework**: [Astro 5](https://astro.build/) (`output: 'static'`) with Preact islands (`@astrojs/preact`).
+- **Framework**: [Astro 7](https://astro.build/) (`output: 'static'`) with Preact islands (`@astrojs/preact`).
 - **Edge Backend**: [Cloudflare Workers](https://workers.cloudflare.com/) powered by [Hono 4](https://hono.dev/) mounted at `/api/*`.
 - **Database**: [Neon Serverless Postgres](https://neon.tech/) (`@neondatabase/serverless`) storing `site_content` in a singleton JSONB row.
 - **Media Storage**: Neon Object Storage (AWS S3-compatible via `@aws-sdk/client-s3` and `@aws-sdk/s3-presigned-post`).

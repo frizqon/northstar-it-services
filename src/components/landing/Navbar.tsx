@@ -54,6 +54,19 @@ export function Navbar({ brand, email }: NavbarProps): JSX.Element {
     setMobileMenuOpen(false);
   };
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
+
   return (
     <header class={`site-header-sticky ${isScrolled ? 'is-scrolled' : ''}`}>
       <nav class="site-nav wrap" aria-label="Main navigation">
@@ -104,7 +117,13 @@ export function Navbar({ brand, email }: NavbarProps): JSX.Element {
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
         <div class="mobile-drawer-backdrop" onClick={closeMobileMenu}>
-          <div class="mobile-drawer" onClick={(e) => e.stopPropagation()}>
+          <div
+            class="mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile navigation"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div class="mobile-drawer-header">
               <span class="drawer-title">NAVIGATION</span>
               <button

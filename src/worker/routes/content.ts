@@ -9,8 +9,22 @@ export const contentRouter = new Hono<WorkerEnv>();
 
 contentRouter.get('/content', async (c) => {
   try {
-    const content = await getSiteContent(c.env, isLocalDev(c));
-    return c.json(content, 200, { 'Cache-Control': 'no-store' });
+    const { content, updatedAt } = await getSiteContent(c.env, isLocalDev(c));
+    const etag = updatedAt ? `"${updatedAt}"` : null;
+
+    if (etag && c.req.header('If-None-Match') === etag) {
+      return c.body(null, 304, {
+        ETag: etag,
+        'Cache-Control': 'public, max-age=60, stale-while-revalidate=300'
+      });
+    }
+
+    const headers: Record<string, string> = {
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300'
+    };
+    if (etag) headers.ETag = etag;
+
+    return c.json(content, 200, headers);
   } catch (error) {
     console.error('Read content failed', error);
     return c.json({ error: 'Content is temporarily unavailable' }, 503);

@@ -14,6 +14,12 @@ import {
 
 export const contactRouter = new Hono<WorkerEnv>();
 
+function parseMessageId(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 /**
  * Public endpoint to submit a contact inquiry.
  */
@@ -85,8 +91,8 @@ contactRouter.put('/admin/messages/:id', verifyAdmin, async (c) => {
     return c.json({ error: 'Cross-origin request rejected' }, 403);
   }
 
-  const id = parseInt(c.req.param('id'), 10);
-  if (isNaN(id) || id <= 0) {
+  const id = parseMessageId(c.req.param('id'));
+  if (id === null) {
     return c.json({ error: 'Invalid message ID' }, 400);
   }
 
@@ -97,11 +103,24 @@ contactRouter.put('/admin/messages/:id', verifyAdmin, async (c) => {
     return c.json({ error: 'Invalid JSON request body' }, 400);
   }
 
+  if (!payload || typeof payload !== 'object') {
+    return c.json({ error: 'Invalid JSON request body' }, 400);
+  }
+
   const body = payload as { status?: string; replyNotes?: string | null };
   const validStatuses: MessageStatus[] = ['unread', 'read', 'replied'];
 
   if (!body.status || !validStatuses.includes(body.status as MessageStatus)) {
     return c.json({ error: 'Invalid status. Must be unread, read, or replied.' }, 400);
+  }
+
+  if (body.replyNotes !== undefined && body.replyNotes !== null) {
+    if (typeof body.replyNotes !== 'string') {
+      return c.json({ error: 'Reply notes must be a string' }, 400);
+    }
+    if (body.replyNotes.length > 2000) {
+      return c.json({ error: 'Reply notes must not exceed 2000 characters' }, 400);
+    }
   }
 
   const isLocal = isLocalDev(c);
@@ -137,8 +156,8 @@ contactRouter.delete('/admin/messages/:id', verifyAdmin, async (c) => {
     return c.json({ error: 'Cross-origin request rejected' }, 403);
   }
 
-  const id = parseInt(c.req.param('id'), 10);
-  if (isNaN(id) || id <= 0) {
+  const id = parseMessageId(c.req.param('id'));
+  if (id === null) {
     return c.json({ error: 'Invalid message ID' }, 400);
   }
 

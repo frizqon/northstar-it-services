@@ -1,5 +1,5 @@
 const apiKey = process.env.RESEND_API_KEY;
-const recipient = process.env.NOTIFICATION_EMAIL || 'frizqon@gmail.com';
+const recipient = process.env.NOTIFICATION_EMAIL;
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -14,11 +14,35 @@ const liveUrl = process.env.LIVE_URL || 'https://northstar-it-services.frizqon.w
 
 const isSuccess = jobStatus.toLowerCase() === 'success';
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return character;
+    }
+  });
+}
+
 async function sendResend() {
-  if (!apiKey) {
-    console.log('RESEND_API_KEY is not set. Skipping email notification.');
+  if (!apiKey || !recipient) {
+    console.log('RESEND_API_KEY or NOTIFICATION_EMAIL is not set. Skipping email notification.');
     return;
   }
+
+  const safeCommitMsg = escapeHtml(commitMsg);
+  const safeActor = escapeHtml(actor);
+  const safeLiveUrl = escapeHtml(liveUrl);
+  const safeRunUrl = escapeHtml(runUrl);
 
   const subject = isSuccess
     ? `✅ [Deploy Success] Northstar IT Services (${commitSha})`
@@ -62,7 +86,7 @@ async function sendResend() {
       </tr>
       <tr>
         <td class="label">Commit</td>
-        <td class="value">${commitMsg}</td>
+        <td class="value">${safeCommitMsg}</td>
       </tr>
       <tr>
         <td class="label">Hash</td>
@@ -70,13 +94,13 @@ async function sendResend() {
       </tr>
       <tr>
         <td class="label">Pelaksana</td>
-        <td class="value">@${actor}</td>
+        <td class="value">@${safeActor}</td>
       </tr>
     </table>
 
     <div class="actions">
-      <a class="btn btn-live" href="${liveUrl}">↗ Buka Website Live</a>
-      <a class="btn btn-run" href="${runUrl}">↗ Lihat Log GitHub Actions</a>
+      <a class="btn btn-live" href="${safeLiveUrl}">↗ Buka Website Live</a>
+      <a class="btn btn-run" href="${safeRunUrl}">↗ Lihat Log GitHub Actions</a>
     </div>
   </div>
 </body>
@@ -117,16 +141,19 @@ async function sendTelegram() {
 
   const statusEmoji = isSuccess ? '🚀' : '❌';
   const statusText = isSuccess ? '<b>SUCCESSFUL</b>' : '<b>FAILED</b>';
-  const safeMsg = commitMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeMsg = escapeHtml(commitMsg);
+  const safeActor = escapeHtml(actor);
+  const safeLiveUrl = escapeHtml(liveUrl);
+  const safeRunUrl = escapeHtml(runUrl);
 
   const text =
     `${statusEmoji} <b>Northstar Deployment Alert</b>\n\n` +
     `• <b>Status:</b> ${statusText}\n` +
     `• <b>Commit:</b> <code>${safeMsg}</code>\n` +
     `• <b>Hash:</b> <code>${commitSha}</code>\n` +
-    `• <b>Author:</b> @${actor}\n\n` +
-    `🌐 <a href="${liveUrl}">Buka Website Live</a>\n` +
-    `📋 <a href="${runUrl}">Log GitHub Actions</a>`;
+    `• <b>Author:</b> @${safeActor}\n\n` +
+    `🌐 <a href="${safeLiveUrl}">Buka Website Live</a>\n` +
+    `📋 <a href="${safeRunUrl}">Log GitHub Actions</a>`;
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
