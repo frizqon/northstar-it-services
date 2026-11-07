@@ -3,12 +3,13 @@ import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { WorkerEnv, PresignInput } from '../types';
 
 export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
-export const ALLOWED_MEDIA_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif'
-]);
+
+export const ALLOWED_MEDIA_TYPES: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/avif': '.avif'
+};
 
 export async function createPresignedUpload(
   env: WorkerEnv['Bindings'],
@@ -28,7 +29,8 @@ export async function createPresignedUpload(
     throw new TypeError('File name, content type, and size are required');
   }
 
-  if (!ALLOWED_MEDIA_TYPES.has(input.contentType)) {
+  const expectedExt = ALLOWED_MEDIA_TYPES[input.contentType];
+  if (!expectedExt) {
     throw new RangeError('Only JPEG, PNG, WebP, and AVIF images are allowed');
   }
 
@@ -37,8 +39,14 @@ export async function createPresignedUpload(
     throw new RangeError('Image must be 8 MB or smaller');
   }
 
-  const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-80) || 'image';
-  const key = `projects/${crypto.randomUUID()}-${safeName}`;
+  // Sanitize filename: strip user extensions and disallow path traversal / double extensions
+  const sanitizedBase = input.fileName
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .slice(-50)
+    .replace(/^-+|-+$/g, '') || 'upload';
+
+  const key = `projects/${crypto.randomUUID()}-${sanitizedBase}${expectedExt}`;
 
   const s3 = new S3Client({
     endpoint: env.AWS_ENDPOINT_URL_S3,

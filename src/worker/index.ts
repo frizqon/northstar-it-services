@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { WorkerEnv } from './types';
 import { securityHeaders } from './middleware/securityHeaders';
 import { healthRouter } from './routes/health';
@@ -10,6 +11,26 @@ const app = new Hono<WorkerEnv>();
 
 // Global security headers
 app.use('*', securityHeaders);
+
+// Prevent Denial of Service via large payloads (1MB limit for JSON API calls)
+app.use(
+  '/api/*',
+  bodyLimit({
+    maxSize: 1024 * 1024,
+    onError: (c) => c.json({ error: 'Request body exceeds maximum size limit (1 MB)' }, 413)
+  })
+);
+
+// Centralized error handling to prevent sensitive stack trace leaks in production
+app.onError((err, c) => {
+  console.error('Unhandled worker error:', err);
+  return c.json(
+    {
+      error: 'An internal server error occurred'
+    },
+    500
+  );
+});
 
 // Mount API routes
 app.route('/api', healthRouter);
