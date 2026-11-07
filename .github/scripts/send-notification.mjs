@@ -139,19 +139,19 @@ async function sendTelegram() {
     return;
   }
 
-  const statusEmoji = isSuccess ? '🚀' : '❌';
-  const statusText = isSuccess ? '<b>SUCCESSFUL</b>' : '<b>FAILED</b>';
+  const statusEmoji = isSuccess ? '✅' : '🚨';
+  const statusLabel = isSuccess ? 'DEPLOY SUCCESS' : 'DEPLOY FAILED';
+  const projectName = 'Northstar IT Services';
   const safeMsg = escapeHtml(commitMsg);
   const safeActor = escapeHtml(actor);
   const safeLiveUrl = escapeHtml(liveUrl);
   const safeRunUrl = escapeHtml(runUrl);
 
   const text =
-    `${statusEmoji} <b>Northstar Deployment Alert</b>\n\n` +
-    `• <b>Status:</b> ${statusText}\n` +
+    `${statusEmoji} <b>${statusLabel}</b> — ${projectName}\n` +
+    `👤 @${safeActor}\n\n` +
     `• <b>Commit:</b> <code>${safeMsg}</code>\n` +
-    `• <b>Hash:</b> <code>${commitSha}</code>\n` +
-    `• <b>Author:</b> @${safeActor}\n\n` +
+    `• <b>Hash:</b> <code>${commitSha}</code>\n\n` +
     `🌐 <a href="${safeLiveUrl}">Buka Website Live</a>\n` +
     `📋 <a href="${safeRunUrl}">Log GitHub Actions</a>`;
 
