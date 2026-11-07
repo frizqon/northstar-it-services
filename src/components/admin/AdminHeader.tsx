@@ -3,9 +3,16 @@ import type { JSX } from 'preact';
 interface AdminHeaderProps {
   currentUser: string;
   onLogout: () => void;
+  unreadCount?: number;
+  onNavigateMessages?: () => void;
 }
 
-export function AdminHeader({ currentUser, onLogout }: AdminHeaderProps): JSX.Element {
+export function AdminHeader({
+  currentUser,
+  onLogout,
+  unreadCount = 0,
+  onNavigateMessages
+}: AdminHeaderProps): JSX.Element {
   const avatarInitials = currentUser.slice(0, 2).toUpperCase();
 
   return (
@@ -13,20 +20,35 @@ export function AdminHeader({ currentUser, onLogout }: AdminHeaderProps): JSX.El
       <div class="crumb">
         Northstar <span>/</span> Content Studio
       </div>
-      <div class="admin-user">
-        <span class="user-avatar" aria-hidden="true">{avatarInitials}</span>
-        <div>
-          <span>{currentUser}</span>
-          <small>Administrator</small>
+
+      <div class="admin-topbar-right">
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            class="header-notif-btn"
+            onClick={onNavigateMessages}
+            title={`${unreadCount} inquiry message(s) need response`}
+          >
+            <span class="notif-icon" aria-hidden="true">✉</span>
+            <span class="notif-pill">{unreadCount} need response</span>
+          </button>
+        )}
+
+        <div class="admin-user">
+          <span class="user-avatar" aria-hidden="true">{avatarInitials}</span>
+          <div>
+            <span>{currentUser}</span>
+            <small>Administrator</small>
+          </div>
+          <button
+            type="button"
+            class="logout-button"
+            onClick={onLogout}
+            title="Sign out of Content Studio"
+          >
+            Sign out
+          </button>
         </div>
-        <button
-          type="button"
-          class="logout-button"
-          onClick={onLogout}
-          title="Sign out of Content Studio"
-        >
-          Sign out
-        </button>
       </div>
     </header>
   );

@@ -182,3 +182,187 @@ describe('Worker Integration: Content Mutation & DoS Protection', () => {
     expect(res.status).toBe(413);
   });
 });
+
+describe('Worker Integration: Contact Messages Feature', () => {
+  it('POST /api/contact should reject invalid submission with 400', async () => {
+    const res = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.0.0.1' },
+        body: JSON.stringify({ name: 'A', email: 'invalid', message: '' })
+      },
+      mockEnv
+    );
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBeDefined();
+  });
+
+  it('POST /api/contact should accept valid submission and return 201', async () => {
+    const res = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.0.0.2' },
+        body: JSON.stringify({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          message: 'Interested in cloud and security audit.'
+        })
+      },
+      mockEnv
+    );
+
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.id).toBeDefined();
+  });
+
+  it('POST /api/contact should trigger 429 when submitting too many messages from same IP', async () => {
+    const spamIp = '10.0.0.99';
+
+    for (let i = 0; i < 5; i++) {
+      const res = await app.request(
+        '/api/contact',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': spamIp },
+          body: JSON.stringify({
+            name: `User ${i}`,
+            email: `user${i}@example.com`,
+            message: 'Inquiry message content'
+          })
+        },
+        mockEnv
+      );
+      expect(res.status).toBe(201);
+    }
+
+    // 6th submission should be rate-limited
+    const rateLimitedRes = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': spamIp },
+        body: JSON.stringify({
+          name: 'Blocked User',
+          email: 'blocked@example.com',
+          message: 'This should be blocked by rate limit'
+        })
+      },
+      mockEnv
+    );
+
+    expect(rateLimitedRes.status).toBe(429);
+    const data = await rateLimitedRes.json();
+    expect(data.error).toContain('Too many messages sent');
+  });
+
+  it('GET /api/admin/messages should reject unauthenticated requests with 401', async () => {
+    const res = await app.request('/api/admin/messages', {}, mockEnv);
+    expect(res.status).toBe(401);
+  });
+
+  it('GET, PUT, and DELETE /api/admin/messages should work for authenticated admin', async () => {
+    // 1. Login to obtain session
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.168.1.205' },
+        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+      },
+      mockEnv
+    );
+    const cookieHeader = loginRes.headers.get('Set-Cookie') || '';
+    const sessionToken = cookieHeader.split(';')[0];
+
+    // 2. Submit a fresh contact message
+    const submitRes = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.0.0.5' },
+        body: JSON.stringify({
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          message: 'Need consulting for our microservices setup.'
+        })
+      },
+      mockEnv
+    );
+    const submitData = await submitRes.json();
+    const messageId = submitData.id;
+
+    // 3. Fetch messages as admin
+    const listRes = await app.request(
+      'https://northstar.example/api/admin/messages',
+      {
+        headers: { Cookie: sessionToken }
+      },
+      mockEnv
+    );
+    expect(listRes.status).toBe(200);
+    const listData = await listRes.json();
+    expect(listData.ok).toBe(true);
+    expect(listData.messages).toBeInstanceOf(Array);
+    expect(listData.stats).toBeDefined();
+    expect(listData.stats.unread).toBeGreaterThanOrEqual(1);
+
+    // 4. Update message status to 'read'
+    const markReadRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ status: 'read' })
+      },
+      mockEnv
+    );
+    expect(markReadRes.status).toBe(200);
+    const markReadData = await markReadRes.json();
+    expect(markReadData.message.status).toBe('read');
+
+    // 5. Update message status to 'replied' with reply notes
+    const replyRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ status: 'replied', replyNotes: 'Proposal email sent.' })
+      },
+      mockEnv
+    );
+    expect(replyRes.status).toBe(200);
+    const replyData = await replyRes.json();
+    expect(replyData.message.status).toBe('replied');
+    expect(replyData.message.reply_notes).toBe('Proposal email sent.');
+    expect(replyData.message.replied_at).toBeDefined();
+
+    // 6. Delete message
+    const deleteRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        }
+      },
+      mockEnv
+    );
+    expect(deleteRes.status).toBe(200);
+    const deleteData = await deleteRes.json();
+    expect(deleteData.ok).toBe(true);
+  });
+});

@@ -8,9 +8,13 @@ interface AttemptRecord {
 }
 
 const loginAttempts = new Map<string, AttemptRecord>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+const contactAttempts = new Map<string, { count: number; firstAttemptAt: number }>();
+const MAX_CONTACT_ATTEMPTS = 5;
+const CONTACT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
 function getClientIp(c: Context<WorkerEnv>): string {
   const cfIp = c.req.header('cf-connecting-ip');
@@ -55,7 +59,7 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
     };
 
     // Reset window if expired
-    if (now - current.firstAttemptAt > WINDOW_MS) {
+    if (now - current.firstAttemptAt > LOGIN_WINDOW_MS) {
       current.count = 1;
       current.firstAttemptAt = now;
       current.blockedUntil = 0;
@@ -63,8 +67,8 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
       current.count += 1;
     }
 
-    if (current.count >= MAX_ATTEMPTS) {
-      current.blockedUntil = now + BLOCK_DURATION_MS;
+    if (current.count >= MAX_LOGIN_ATTEMPTS) {
+      current.blockedUntil = now + LOGIN_BLOCK_DURATION_MS;
     }
 
     loginAttempts.set(ip, current);
@@ -72,4 +76,35 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
     // Reset failed counter on successful login
     loginAttempts.delete(ip);
   }
+};
+
+/**
+ * Middleware to protect public contact submission from spam/flooding.
+ */
+export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) => {
+  const ip = getClientIp(c);
+  const now = Date.now();
+  const record = contactAttempts.get(ip);
+
+  if (record) {
+    if (now - record.firstAttemptAt > CONTACT_WINDOW_MS) {
+      // Window expired, start fresh
+      contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+    } else if (record.count >= MAX_CONTACT_ATTEMPTS) {
+      const remainingSeconds = Math.ceil((record.firstAttemptAt + CONTACT_WINDOW_MS - now) / 1000);
+      c.header('Retry-After', remainingSeconds.toString());
+      return c.json(
+        {
+          error: 'Too many messages sent. Please wait a few minutes before submitting again.'
+        },
+        429
+      );
+    } else {
+      record.count += 1;
+    }
+  } else {
+    contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+  }
+
+  await next();
 };

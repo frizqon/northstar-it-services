@@ -32,3 +32,30 @@ export type PresignInput = {
   contentType?: string;
   size?: number;
 };
+
+export type MessageStatus = 'unread' | 'read' | 'replied';
+
+export type ContactMessage = {
+  id: number;
+  name: string;
+  email: string;
+  message: string;
+  status: MessageStatus;
+  reply_notes?: string | null;
+  replied_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContactMessageInput = {
+  name: string;
+  email: string;
+  message: string;
+};
+
+export type ContactMessageStats = {
+  total: number;
+  unread: number;
+  read: number;
+  replied: number;
+};

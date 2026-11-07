@@ -1,0 +1,160 @@
+import { Hono } from 'hono';
+import type { WorkerEnv, MessageStatus } from '../types';
+import { verifyAdmin } from '../middleware/auth';
+import { isLocalDev, isSafeOrigin } from '../lib/security';
+import { contactRateLimiter } from '../middleware/rateLimit';
+import {
+  validateContactInput,
+  saveContactMessage,
+  getContactMessages,
+  getContactMessageStats,
+  updateContactMessageStatus,
+  deleteContactMessage
+} from '../lib/db';
+
+export const contactRouter = new Hono<WorkerEnv>();
+
+/**
+ * Public endpoint to submit a contact inquiry.
+ */
+contactRouter.post('/contact', contactRateLimiter, async (c) => {
+  let payload: unknown;
+  try {
+    payload = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON request body' }, 400);
+  }
+
+  const validation = validateContactInput(payload);
+  if (!validation.valid || !validation.data) {
+    return c.json({ error: validation.error || 'Invalid form input' }, 400);
+  }
+
+  const isLocal = isLocalDev(c);
+  if (!c.env.DATABASE_URL && (!isLocal || c.env.DEV_AUTH_BYPASS !== 'true')) {
+    return c.json({ error: 'Contact service is temporarily unavailable' }, 503);
+  }
+
+  try {
+    const saved = await saveContactMessage(c.env, validation.data, isLocal);
+    return c.json(
+      {
+        ok: true,
+        message: 'Your inquiry has been received. Our team will contact you soon.',
+        id: saved.id
+      },
+      201
+    );
+  } catch (error) {
+    console.error('Failed to save contact message:', error);
+    return c.json({ error: 'Could not submit your message. Please try again later.' }, 500);
+  }
+});
+
+/**
+ * Admin endpoint: List messages and aggregate stats.
+ */
+contactRouter.get('/admin/messages', verifyAdmin, async (c) => {
+  const isLocal = isLocalDev(c);
+  if (!c.env.DATABASE_URL && (!isLocal || c.env.DEV_AUTH_BYPASS !== 'true')) {
+    return c.json({ error: 'Database is not configured' }, 503);
+  }
+
+  const statusParam = c.req.query('status') as MessageStatus | 'all' | undefined;
+  const validStatuses: (MessageStatus | 'all')[] = ['all', 'unread', 'read', 'replied'];
+  const filterStatus = statusParam && validStatuses.includes(statusParam) ? statusParam : 'all';
+
+  try {
+    const [messages, stats] = await Promise.all([
+      getContactMessages(c.env, isLocal, filterStatus),
+      getContactMessageStats(c.env, isLocal)
+    ]);
+
+    return c.json({ ok: true, messages, stats });
+  } catch (error) {
+    console.error('Failed to fetch contact messages:', error);
+    return c.json({ error: 'Could not retrieve messages' }, 500);
+  }
+});
+
+/**
+ * Admin endpoint: Update message status (unread, read, replied) and reply notes.
+ */
+contactRouter.put('/admin/messages/:id', verifyAdmin, async (c) => {
+  if (!isSafeOrigin(c)) {
+    return c.json({ error: 'Cross-origin request rejected' }, 403);
+  }
+
+  const id = parseInt(c.req.param('id'), 10);
+  if (isNaN(id) || id <= 0) {
+    return c.json({ error: 'Invalid message ID' }, 400);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON request body' }, 400);
+  }
+
+  const body = payload as { status?: string; replyNotes?: string | null };
+  const validStatuses: MessageStatus[] = ['unread', 'read', 'replied'];
+
+  if (!body.status || !validStatuses.includes(body.status as MessageStatus)) {
+    return c.json({ error: 'Invalid status. Must be unread, read, or replied.' }, 400);
+  }
+
+  const isLocal = isLocalDev(c);
+  if (!c.env.DATABASE_URL && (!isLocal || c.env.DEV_AUTH_BYPASS !== 'true')) {
+    return c.json({ error: 'Database is not configured' }, 503);
+  }
+
+  try {
+    const updated = await updateContactMessageStatus(
+      c.env,
+      id,
+      body.status as MessageStatus,
+      body.replyNotes !== undefined ? body.replyNotes : null,
+      isLocal
+    );
+
+    if (!updated) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+
+    return c.json({ ok: true, message: updated });
+  } catch (error) {
+    console.error('Failed to update message:', error);
+    return c.json({ error: 'Could not update message' }, 500);
+  }
+});
+
+/**
+ * Admin endpoint: Delete message.
+ */
+contactRouter.delete('/admin/messages/:id', verifyAdmin, async (c) => {
+  if (!isSafeOrigin(c)) {
+    return c.json({ error: 'Cross-origin request rejected' }, 403);
+  }
+
+  const id = parseInt(c.req.param('id'), 10);
+  if (isNaN(id) || id <= 0) {
+    return c.json({ error: 'Invalid message ID' }, 400);
+  }
+
+  const isLocal = isLocalDev(c);
+  if (!c.env.DATABASE_URL && (!isLocal || c.env.DEV_AUTH_BYPASS !== 'true')) {
+    return c.json({ error: 'Database is not configured' }, 503);
+  }
+
+  try {
+    const deleted = await deleteContactMessage(c.env, id, isLocal);
+    if (!deleted) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to delete message:', error);
+    return c.json({ error: 'Could not delete message' }, 500);
+  }
+});

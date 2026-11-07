@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { contentRouter } from './routes/content';
 import { mediaRouter } from './routes/media';
+import { contactRouter } from './routes/contact';
 
 const app = new Hono<WorkerEnv>();
 
@@ -35,6 +36,7 @@ app.onError((err, c) => {
 // Mount API routes
 app.route('/api', healthRouter);
 app.route('/api', contentRouter);
+app.route('/api', contactRouter);
 app.route('/api/admin', authRouter);
 app.route('/api', mediaRouter);
 

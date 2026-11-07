@@ -1,8 +1,22 @@
 import { neon } from '@neondatabase/serverless';
 import { DEFAULT_CONTENT, type SiteContent } from '../../content/default';
-import type { WorkerEnv } from '../types';
+import type {
+  WorkerEnv,
+  ContactMessage,
+  ContactMessageInput,
+  ContactMessageStats,
+  MessageStatus
+} from '../types';
 
 let inMemoryContent: SiteContent = structuredClone(DEFAULT_CONTENT);
+let inMemoryMessages: ContactMessage[] = [];
+let nextMessageId = 1;
+
+export function resetInMemoryStore(): void {
+  inMemoryContent = structuredClone(DEFAULT_CONTENT);
+  inMemoryMessages = [];
+  nextMessageId = 1;
+}
 
 export function validateSiteContent(data: unknown): data is SiteContent {
   if (!data || typeof data !== 'object') return false;
@@ -89,6 +103,48 @@ export function validateSiteContent(data: unknown): data is SiteContent {
   return true;
 }
 
+export function validateContactInput(data: unknown): {
+  valid: boolean;
+  error?: string;
+  data?: ContactMessageInput;
+} {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Invalid input payload' };
+  }
+
+  const payload = data as Record<string, unknown>;
+  const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+  const email = typeof payload.email === 'string' ? payload.email.trim() : '';
+  const message = typeof payload.message === 'string' ? payload.message.trim() : '';
+
+  if (!name || name.length < 2) {
+    return { valid: false, error: 'Name must be at least 2 characters long' };
+  }
+  if (name.length > 100) {
+    return { valid: false, error: 'Name must not exceed 100 characters' };
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    return { valid: false, error: 'A valid email address is required' };
+  }
+  if (email.length > 150) {
+    return { valid: false, error: 'Email must not exceed 150 characters' };
+  }
+
+  if (!message || message.length < 5) {
+    return { valid: false, error: 'Message must be at least 5 characters long' };
+  }
+  if (message.length > 3000) {
+    return { valid: false, error: 'Message must not exceed 3000 characters' };
+  }
+
+  return {
+    valid: true,
+    data: { name, email, message }
+  };
+}
+
 export async function getSiteContent(
   env: WorkerEnv['Bindings'],
   isLocal: boolean
@@ -126,4 +182,215 @@ export async function saveSiteContent(
       content = EXCLUDED.content,
       updated_at = now()
   `;
+}
+
+// Ensure contact_messages table exists in Postgres
+async function ensureContactTable(sql: any): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id SERIAL PRIMARY KEY,
+      name text NOT NULL,
+      email text NOT NULL,
+      message text NOT NULL,
+      status text NOT NULL DEFAULT 'unread',
+      reply_notes text,
+      replied_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+}
+
+export async function saveContactMessage(
+  env: WorkerEnv['Bindings'],
+  input: ContactMessageInput,
+  isLocal: boolean
+): Promise<ContactMessage> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      const now = new Date().toISOString();
+      const message: ContactMessage = {
+        id: nextMessageId++,
+        name: input.name,
+        email: input.email,
+        message: input.message,
+        status: 'unread',
+        reply_notes: null,
+        replied_at: null,
+        created_at: now,
+        updated_at: now
+      };
+      inMemoryMessages.unshift(message);
+      return message;
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = neon(env.DATABASE_URL);
+  await ensureContactTable(sql);
+
+  const rows = await sql`
+    INSERT INTO contact_messages (name, email, message, status, created_at, updated_at)
+    VALUES (${input.name}, ${input.email}, ${input.message}, 'unread', now(), now())
+    RETURNING id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+  `;
+
+  return rows[0] as unknown as ContactMessage;
+}
+
+export async function getContactMessages(
+  env: WorkerEnv['Bindings'],
+  isLocal: boolean,
+  statusFilter?: MessageStatus | 'all'
+): Promise<ContactMessage[]> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      if (!statusFilter || statusFilter === 'all') {
+        return [...inMemoryMessages];
+      }
+      return inMemoryMessages.filter((m) => m.status === statusFilter);
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = neon(env.DATABASE_URL);
+  await ensureContactTable(sql);
+
+  if (statusFilter && statusFilter !== 'all') {
+    const rows = await sql`
+      SELECT id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+      FROM contact_messages
+      WHERE status = ${statusFilter}
+      ORDER BY created_at DESC
+    `;
+    return rows as unknown as ContactMessage[];
+  }
+
+  const rows = await sql`
+    SELECT id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+    FROM contact_messages
+    ORDER BY created_at DESC
+  `;
+  return rows as unknown as ContactMessage[];
+}
+
+export async function getContactMessageStats(
+  env: WorkerEnv['Bindings'],
+  isLocal: boolean
+): Promise<ContactMessageStats> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      let unread = 0;
+      let read = 0;
+      let replied = 0;
+      for (const m of inMemoryMessages) {
+        if (m.status === 'unread') unread++;
+        else if (m.status === 'read') read++;
+        else if (m.status === 'replied') replied++;
+      }
+      return {
+        total: inMemoryMessages.length,
+        unread,
+        read,
+        replied
+      };
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = neon(env.DATABASE_URL);
+  await ensureContactTable(sql);
+
+  const rows = await sql`
+    SELECT status, count(*)::int as count
+    FROM contact_messages
+    GROUP BY status
+  `;
+
+  const counts: Record<string, number> = {
+    unread: 0,
+    read: 0,
+    replied: 0
+  };
+
+  let total = 0;
+  for (const row of rows as unknown as { status: string; count: number }[]) {
+    counts[row.status] = (counts[row.status] || 0) + Number(row.count);
+    total += Number(row.count);
+  }
+
+  return {
+    total,
+    unread: counts.unread || 0,
+    read: counts.read || 0,
+    replied: counts.replied || 0
+  };
+}
+
+export async function updateContactMessageStatus(
+  env: WorkerEnv['Bindings'],
+  id: number,
+  status: MessageStatus,
+  replyNotes: string | null = null,
+  isLocal: boolean = false
+): Promise<ContactMessage | null> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      const idx = inMemoryMessages.findIndex((m) => m.id === id);
+      if (idx === -1) return null;
+      const now = new Date().toISOString();
+      const updated: ContactMessage = {
+        ...inMemoryMessages[idx],
+        status,
+        reply_notes: replyNotes !== null ? replyNotes : inMemoryMessages[idx].reply_notes,
+        replied_at:
+          status === 'replied'
+            ? inMemoryMessages[idx].replied_at || now
+            : inMemoryMessages[idx].replied_at,
+        updated_at: now
+      };
+      inMemoryMessages[idx] = updated;
+      return updated;
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = neon(env.DATABASE_URL);
+  await ensureContactTable(sql);
+
+  const rows = await sql`
+    UPDATE contact_messages
+    SET status = ${status},
+        reply_notes = COALESCE(${replyNotes}, reply_notes),
+        replied_at = CASE WHEN ${status} = 'replied' THEN COALESCE(replied_at, now()) ELSE replied_at END,
+        updated_at = now()
+    WHERE id = ${id}
+    RETURNING id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+  `;
+
+  if (!rows || rows.length === 0) return null;
+  return rows[0] as unknown as ContactMessage;
+}
+
+export async function deleteContactMessage(
+  env: WorkerEnv['Bindings'],
+  id: number,
+  isLocal: boolean
+): Promise<boolean> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      const initialLen = inMemoryMessages.length;
+      inMemoryMessages = inMemoryMessages.filter((m) => m.id !== id);
+      return inMemoryMessages.length < initialLen;
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = neon(env.DATABASE_URL);
+  await ensureContactTable(sql);
+
+  const result = await sql`
+    DELETE FROM contact_messages WHERE id = ${id}
+  `;
+  return true;
 }
