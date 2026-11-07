@@ -1,5 +1,8 @@
 const apiKey = process.env.RESEND_API_KEY;
 const recipient = process.env.NOTIFICATION_EMAIL || 'frizqon@gmail.com';
+const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+
 const jobStatus = process.env.JOB_STATUS || 'success';
 const commitMsg = process.env.COMMIT_MESSAGE || 'No commit message';
 const commitSha = process.env.COMMIT_SHA ? process.env.COMMIT_SHA.slice(0, 7) : 'unknown';
@@ -9,21 +12,23 @@ const runId = process.env.RUN_ID || '';
 const runUrl = `https://github.com/${repo}/actions/runs/${runId}`;
 const liveUrl = 'https://northstar-it-services.frizqon.workers.dev';
 
-if (!apiKey) {
-  console.log('RESEND_API_KEY is not set. Skipping email notification.');
-  process.exit(0);
-}
-
 const isSuccess = jobStatus.toLowerCase() === 'success';
-const subject = isSuccess
-  ? `✅ [Deploy Success] Northstar IT Services (${commitSha})`
-  : `❌ [Deploy Failed] Northstar IT Services (${commitSha})`;
 
-const statusColor = isSuccess ? '#baf478' : '#f87171';
-const statusBg = isSuccess ? '#1b2a22' : '#2d1818';
-const statusBadge = isSuccess ? 'DEPLOY SUCCESSFUL' : 'DEPLOY FAILED';
+async function sendResend() {
+  if (!apiKey) {
+    console.log('RESEND_API_KEY is not set. Skipping email notification.');
+    return;
+  }
 
-const html = `
+  const subject = isSuccess
+    ? `✅ [Deploy Success] Northstar IT Services (${commitSha})`
+    : `❌ [Deploy Failed] Northstar IT Services (${commitSha})`;
+
+  const statusColor = isSuccess ? '#baf478' : '#f87171';
+  const statusBg = isSuccess ? '#1b2a22' : '#2d1818';
+  const statusBadge = isSuccess ? 'DEPLOY SUCCESSFUL' : 'DEPLOY FAILED';
+
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -78,7 +83,6 @@ const html = `
 </html>
 `;
 
-async function send() {
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -105,4 +109,50 @@ async function send() {
   }
 }
 
-send();
+async function sendTelegram() {
+  if (!telegramToken || !telegramChatId) {
+    console.log('TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured. Skipping Telegram notification.');
+    return;
+  }
+
+  const statusEmoji = isSuccess ? '🚀' : '❌';
+  const statusText = isSuccess ? '<b>SUCCESSFUL</b>' : '<b>FAILED</b>';
+  const safeMsg = commitMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const text =
+    `${statusEmoji} <b>Northstar Deployment Alert</b>\n\n` +
+    `• <b>Status:</b> ${statusText}\n` +
+    `• <b>Commit:</b> <code>${safeMsg}</code>\n` +
+    `• <b>Hash:</b> <code>${commitSha}</code>\n` +
+    `• <b>Author:</b> @${actor}\n\n` +
+    `🌐 <a href="${liveUrl}">Buka Website Live</a>\n` +
+    `📋 <a href="${runUrl}">Log GitHub Actions</a>`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: telegramChatId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      console.error('Failed to send Telegram notification:', data);
+    } else {
+      console.log('Telegram notification sent successfully to group!');
+    }
+  } catch (err) {
+    console.error('Error sending Telegram message:', err);
+  }
+}
+
+async function main() {
+  await Promise.allSettled([sendResend(), sendTelegram()]);
+}
+
+main();
