@@ -208,7 +208,30 @@ git push origin main
 
 ---
 
+## Available Scripts
+
+| Command | Description |
+| :--- | :--- |
+| 
+pm run dev | Build and launch local preview on 127.0.0.1:8787 |
+| 
+pm run build | Compile Astro static files and bundle Vite client assets |
+| 
+pm run typecheck | Run TypeScript type checks (	sc --noEmit) |
+| 
+pm run deploy | Build and deploy directly to Cloudflare Workers |
+
+---
+
 ## Security Best Practices
+
+- **Host Header Spoofing Protected**: Environment mode strictly relies on explicit ENVIRONMENT binding.
+- **Timing-Safe Auth**: Admin password verification uses constant-time string comparison.
+- **Rate Limiting**: /api/admin/login enforces a 5-failed-attempts per 15-minute sliding window per IP.
+- **Strict CSP & Security Headers**: Enforces nosniff, DENY framing, strict-origin, and Content-Security-Policy.
+- **Canonical Media Extensions**: S3 uploads enforce canonical extensions based on validated MIME types.
+- **Payload Size Limiter**: API endpoints enforce a 1 MB body limit to thwart JSON DoS.
+- **Safe URL Sanitization**: Project images validate against javascript: and arbitrary schemes before rendering.
 
 - **Never commit `.dev.vars`**: It is strictly ignored by `.gitignore`.
 - **Rotate Secrets**: Secrets can be updated anytime using `wrangler secret put <KEY>`.
