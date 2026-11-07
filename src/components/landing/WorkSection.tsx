@@ -9,17 +9,18 @@ interface WorkSectionProps {
 function MockWindowVisual({ category }: { category: string }): JSX.Element {
   return (
     <>
-      <div class="visual-window">
+      <div class="visual-window" aria-hidden="true">
         <div class="window-head">
           <i /><i /><i />
-          <span>{category.toLowerCase()}</span>
+          <span class="window-tab-label">{category.toLowerCase()} — sys/metrics</span>
+          <span class="window-pulse-dot" />
         </div>
         <div class="visual-content">
           <div class="visual-sidebar">
             <b /><b /><b /><b />
           </div>
           <div class="visual-main">
-            <div class="visual-label">PERFORMANCE OVERVIEW</div>
+            <div class="visual-label">OBSERVABILITY TELEMETRY</div>
             <div class="visual-chart">
               <i /><i /><i /><i /><i /><i /><i /><i /><i />
             </div>
@@ -40,14 +41,16 @@ export function WorkSection({ projects }: WorkSectionProps): JSX.Element {
       <div class="wrap">
         <div class="section-heading work-heading">
           <div>
-            <span class="section-kicker">SELECTED IMPACT</span>
+            <span class="section-kicker">03 / PROVEN TRACK RECORD</span>
             <h2>
-              Good work.
+              Good engineering.
               <br />
-              <span>Real outcomes.</span>
+              <span>Measurable outcomes.</span>
             </h2>
           </div>
-          <p>We measure success by what changes for your team—not by the tools we use.</p>
+          <p>
+            We measure success not by lines of code or architectural hype, but by tangible business stability and performance acceleration.
+          </p>
         </div>
 
         <div class="project-grid">
@@ -57,7 +60,7 @@ export function WorkSection({ projects }: WorkSectionProps): JSX.Element {
             return (
               <article class={`project-card ${project.tone}`} key={project.name}>
                 <div class="project-visual">
-                  <span class="project-index">0{i + 1}</span>
+                  <span class="project-index">CASE REF · 0{i + 1}</span>
                   {hasValidImage ? (
                     <img
                       class="project-real-image"
@@ -71,12 +74,20 @@ export function WorkSection({ projects }: WorkSectionProps): JSX.Element {
                 </div>
 
                 <div class="project-copy">
-                  <span class="section-kicker">{project.category}</span>
+                  <div class="project-header-meta">
+                    <span class="project-category-tag">{project.category}</span>
+                    <span class="project-status-dot" title="Delivered & Active" aria-hidden="true" />
+                  </div>
+
                   <h3>{project.name}</h3>
                   <p>{project.description}</p>
+
                   <div class="project-result">
-                    <span aria-hidden="true">↗</span>
-                    {project.result}
+                    <span class="result-icon" aria-hidden="true">↗</span>
+                    <div>
+                      <strong class="result-val">{project.result}</strong>
+                      <span class="result-sub">Verified delivery outcome</span>
+                    </div>
                   </div>
                 </div>
               </article>

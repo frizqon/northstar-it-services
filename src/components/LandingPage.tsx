@@ -29,14 +29,16 @@ export default function LandingPage() {
   }, [content.seo.title, content.seo.description]);
 
   return (
-    <main class="site-shell">
+    <div class="site-shell">
       <Navbar brand={content.brand} email={content.contact.email} />
-      <HeroSection hero={content.hero} email={content.contact.email} />
-      <ServicesSection services={content.services} email={content.contact.email} />
-      <WorkSection projects={content.projects} />
-      <AboutSection about={content.about} />
-      <ContactSection contact={content.contact} />
+      <main id="main-content">
+        <HeroSection hero={content.hero} email={content.contact.email} />
+        <ServicesSection services={content.services} email={content.contact.email} />
+        <WorkSection projects={content.projects} />
+        <AboutSection about={content.about} />
+        <ContactSection contact={content.contact} />
+      </main>
       <Footer brand={content.brand} />
-    </main>
+    </div>
   );
 }

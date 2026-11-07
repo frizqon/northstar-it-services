@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { SiteContent } from '../../content/default';
+import { StatusDot } from '../ui/StatusDot';
 
 interface ContactSectionProps {
   contact: SiteContent['contact'];
@@ -74,37 +75,51 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
     <section class="contact section-pad" id="contact">
       <div class="wrap contact-layout">
         <div class="contact-copy">
-          <span class="section-kicker">LET’S GET STARTED</span>
+          <div class="contact-availability-badge">
+            <StatusDot />
+            <span>AVAILABLE FOR NEW ENGAGEMENTS</span>
+          </div>
+
+          <span class="section-kicker">05 / START A CONVERSATION</span>
           <h2>
-            Big plans?
+            Big ambitions?
             <br />
-            <em>Let’s talk tech.</em>
+            <em>Let’s engineer it.</em>
           </h2>
-          <p>{contact.availability}</p>
-          <div class="contact-direct">
-            <a class="button button-lime" href={mailtoUrl}>
-              Direct email <span aria-hidden="true">↗</span>
-            </a>
+
+          <p class="contact-lead-desc">{contact.availability}</p>
+
+          <div class="contact-telemetry-box">
+            <div class="telemetry-item">
+              <span class="telemetry-label">DIRECT INQUIRY</span>
+              <a href={mailtoUrl} class="telemetry-val-link">{contact.email}</a>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">REGIONAL BASE</span>
+              <span class="telemetry-val">{contact.location}</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">RESPONSE SLA</span>
+              <span class="telemetry-val">&lt; 24 business hours guaranteed</span>
+            </div>
           </div>
-          <div class="contact-meta">
-            <a href={mailtoUrl}>{contact.email}</a>
-            <span>{contact.location}</span>
-          </div>
+
           <div class="contact-spark" aria-hidden="true">✳</div>
         </div>
 
         <div class="contact-form-container">
           <div class="contact-form-card">
             <div class="contact-form-header">
-              <h3>Send us a message</h3>
-              <p>Fill out the form below and our team will get in touch shortly.</p>
+              <div class="form-header-badge">INQUIRY CONSOLE</div>
+              <h3>Send us a project briefing</h3>
+              <p>Direct communication with our engineering leadership—no sales fluff.</p>
             </div>
 
             {status === 'success' ? (
               <div class="contact-success-state">
                 <div class="contact-success-icon" aria-hidden="true">✓</div>
-                <h4>Message sent successfully!</h4>
-                <p>Thank you for reaching out. We have received your inquiry and will reply to your email soon.</p>
+                <h4>Message transmitted successfully!</h4>
+                <p>We have logged your inquiry into our Content Studio cockpit and will reply to your email within one business day.</p>
                 <button
                   type="button"
                   class="button button-lime"
@@ -122,7 +137,9 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
                 )}
 
                 <div class="form-group">
-                  <label for="contact-name">Your Name</label>
+                  <label for="contact-name">
+                    Full Name <span class="required-mark" aria-hidden="true">*</span>
+                  </label>
                   <input
                     id="contact-name"
                     name="name"
@@ -137,7 +154,9 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
                 </div>
 
                 <div class="form-group">
-                  <label for="contact-email">Email Address</label>
+                  <label for="contact-email">
+                    Work Email <span class="required-mark" aria-hidden="true">*</span>
+                  </label>
                   <input
                     id="contact-email"
                     name="email"
@@ -152,12 +171,14 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
                 </div>
 
                 <div class="form-group">
-                  <label for="contact-message">Message</label>
+                  <label for="contact-message">
+                    Project Scope / Systems Overview <span class="required-mark" aria-hidden="true">*</span>
+                  </label>
                   <textarea
                     id="contact-message"
                     name="message"
                     rows={4}
-                    placeholder="Tell us about your project, current systems, or questions…"
+                    placeholder="Briefly describe what you are looking to build, modernize, or protect…"
                     value={message}
                     onInput={(e) => setMessage((e.target as HTMLTextAreaElement).value)}
                     required
@@ -171,7 +192,7 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
                   class="button button-lime contact-submit-btn"
                   disabled={submitting}
                 >
-                  {submitting ? 'Sending message…' : 'Send message'} <span aria-hidden="true">↗</span>
+                  {submitting ? 'Transmitting inquiry…' : 'Transmit inquiry'} <span aria-hidden="true">↗</span>
                 </button>
               </form>
             )}

@@ -13,39 +13,48 @@ export function HeroSection({ hero, email }: HeroSectionProps): JSX.Element {
       <div class="hero-copy">
         <div class="eyebrow">
           <StatusDot />
-          {hero.eyebrow}
+          <span class="eyebrow-text">{hero.eyebrow}</span>
+          <span class="eyebrow-pill" aria-hidden="true">OPEN FOR ENGAGEMENT</span>
         </div>
+
         <h1>
           {hero.title}
           <br />
-          <em>{hero.highlight}</em>
+          <span class="hero-highlight">{hero.highlight}</span>
         </h1>
+
         <p class="hero-description">{hero.description}</p>
+
         <div class="hero-actions">
           <a class="button button-lime" href={`mailto:${encodeURIComponent(email)}`}>
             {hero.primaryCta}
             <span aria-hidden="true">↗</span>
           </a>
-          <a class="text-link" href="#services">
-            {hero.secondaryCta} <span aria-hidden="true">↓</span>
+          <a class="button button-ghost" href="#services">
+            {hero.secondaryCta}
+            <span aria-hidden="true">↓</span>
           </a>
         </div>
+
         <div class="hero-proof">
-          <div class="avatar-stack">
+          <div class="avatar-stack" aria-hidden="true">
             <i>J</i>
             <i>A</i>
             <i>M</i>
             <b>+</b>
           </div>
-          <span>
-            Practical expertise.
-            <br />
-            <strong>People-first delivery.</strong>
-          </span>
+          <div class="proof-copy">
+            <span>Practical systems engineering.</span>
+            <strong>Trusted by ambitious teams across APAC.</strong>
+          </div>
+          <div class="proof-metrics" aria-hidden="true">
+            <span class="metric-chip">99.9% SLA</span>
+            <span class="metric-chip">0-Downtime</span>
+          </div>
         </div>
       </div>
 
-      <div class="hero-art" aria-label="Abstract technology illustration">
+      <div class="hero-art" aria-label="Northstar systems architecture telemetry">
         <div class="art-glow" />
         <div class="orbit orbit-one" />
         <div class="orbit orbit-two" />
@@ -53,27 +62,30 @@ export function HeroSection({ hero, email }: HeroSectionProps): JSX.Element {
           <span>NS</span>
           <i aria-hidden="true">✳</i>
         </div>
+
         <div class="float-card card-top">
           <span class="mini-icon" aria-hidden="true">⌘</span>
-          <span>
-            <b>Systems online</b>
-            <small>Everything in sync</small>
-          </span>
+          <div>
+            <b>Systems operational</b>
+            <small>Latency 18ms · Multi-region</small>
+          </div>
           <span class="status-dot" aria-hidden="true" />
         </div>
+
         <div class="float-card card-bottom">
           <span class="mini-bars" aria-hidden="true">
             <i /><i /><i /><i /><i />
           </span>
-          <span>
-            <b>Built for what’s next</b>
-            <small>Stable · Secure · Scalable</small>
-          </span>
+          <div>
+            <b>Engineered for scale</b>
+            <small>Resilient · Audited · Cloud-native</small>
+          </div>
         </div>
-        <span class="art-caption">TECH THAT WORKS FOR YOU · 01—04</span>
+
+        <span class="art-caption">NORTHSTAR TELEMETRY CORE · REF 2026.04</span>
       </div>
 
-      <div class="hero-bottom">
+      <div class="hero-bottom" aria-hidden="true">
         <span>SCROLL TO EXPLORE</span>
         <span class="scroll-line" />
         <span>01 / 04</span>
