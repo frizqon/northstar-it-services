@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { JSX, HTMLInputTypeAttribute, LooseInputHTMLAttributes } from 'preact';
 
 interface InputFieldProps {
   label: string;
@@ -7,7 +7,7 @@ interface InputFieldProps {
   multiline?: boolean;
   rows?: number;
   placeholder?: string;
-  type?: 'text' | 'email';
+  type?: HTMLInputTypeAttribute;
   required?: boolean;
   autoComplete?: string;
   autoFocus?: boolean;
@@ -27,6 +27,16 @@ export function InputField({
   autoFocus = false,
   hint
 }: InputFieldProps): JSX.Element {
+  const inputProps: LooseInputHTMLAttributes<HTMLInputElement> = {
+    type,
+    value,
+    placeholder,
+    required,
+    autoComplete,
+    autoFocus,
+    onInput: (event) => onValueChange((event.target as HTMLInputElement).value)
+  };
+
   return (
     <label class="field">
       <span>{label}</span>
@@ -39,26 +49,10 @@ export function InputField({
           autoFocus={autoFocus}
           onInput={(e) => onValueChange((e.target as HTMLTextAreaElement).value)}
         />
-      ) : type === 'email' ? (
-        <input
-          type="email"
-          value={value}
-          placeholder={placeholder}
-          required={required}
-          autoComplete={autoComplete}
-          autoFocus={autoFocus}
-          onInput={(e) => onValueChange((e.target as HTMLInputElement).value)}
-        />
       ) : (
-        <input
-          type="text"
-          value={value}
-          placeholder={placeholder}
-          required={required}
-          autoComplete={autoComplete}
-          autoFocus={autoFocus}
-          onInput={(e) => onValueChange((e.target as HTMLInputElement).value)}
-        />
+        // Preact 11 types inputs as a discriminated union by `type`. The loose
+        // props are runtime-valid; narrow at the JSX boundary only.
+        <input {...(inputProps as JSX.IntrinsicElements['input'])} />
       )}
       {hint && <small class="upload-hint">{hint}</small>}
     </label>
