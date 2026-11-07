@@ -60,11 +60,12 @@ authRouter.post('/login', loginRateLimiter, async (c) => {
     .setExpirationTime('7d')
     .sign(jwtSecret);
 
-  const isHttps = c.req.url.startsWith('https://');
+  const isHttps = c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https';
+  const isSecure = isHttps || c.env.ENVIRONMENT === 'production';
   setCookie(c, 'admin_session', token, {
     path: '/',
     httpOnly: true,
-    secure: isHttps,
+    secure: isSecure,
     sameSite: 'Lax',
     maxAge: 7 * 24 * 3600
   });

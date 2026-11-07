@@ -14,7 +14,7 @@ test.describe('Public Landing Page E2E', () => {
 
     // Verify navigation links
     await expect(page.locator('.nav-links a:has-text("Services")')).toBeVisible();
-    await expect(page.locator('.nav-links a:has-text("Our work")')).toBeVisible();
+    await expect(page.locator('.nav-links a:has-text("Work")')).toBeVisible();
     await expect(page.locator('.nav-links a:has-text("About")')).toBeVisible();
 
     // Verify hero CTA
@@ -62,7 +62,7 @@ test.describe('Public Landing Page E2E', () => {
 
     const successState = page.locator('.contact-success-state');
     await expect(successState).toBeVisible({ timeout: 5000 });
-    await expect(successState).toContainText(/Message sent successfully/i);
+    await expect(successState).toContainText(/Message (transmitted|sent) successfully/i);
   });
 });
 

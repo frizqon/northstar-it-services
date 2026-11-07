@@ -21,6 +21,16 @@ describe('Worker Integration: Security Headers & Health', () => {
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
     expect(res.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
+    expect(res.headers.get('Strict-Transport-Security')).toBeNull();
+  });
+
+  it('should enforce Strict-Transport-Security in production', async () => {
+    const prodEnv = { ...mockEnv, ENVIRONMENT: 'production' as const };
+    const res = await app.request('/api/health', {}, prodEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Strict-Transport-Security')).toBe(
+      'max-age=31536000; includeSubDomains; preload'
+    );
   });
 
   it('GET /api/health should return ok: true and environment info', async () => {
