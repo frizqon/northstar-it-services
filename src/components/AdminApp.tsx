@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'preact/hooks';
-import { DEFAULT_CONTENT, type SiteContent } from '../content/default';
-import type { ContactMessage, ContactMessageStats, MessageStatus } from '../worker/types';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { DEFAULT_CONTENT, type Service, type SiteContent } from '../content/default';
+import type { ContactMessage, MessageStatus } from '../worker/types';
 import { ToastNotice } from './ui/ToastNotice';
 import { LoginView } from './admin/LoginView';
 import { AdminSidebar } from './admin/AdminSidebar';
@@ -13,23 +13,47 @@ import { ProjectsEditor } from './admin/editors/ProjectsEditor';
 import { AboutEditor } from './admin/editors/AboutEditor';
 import { ContactSeoEditor } from './admin/editors/ContactSeoEditor';
 
+type Notice = { type: 'success' | 'error'; message: string };
+
+function renumberServices(services: Service[]): void {
+  services.forEach((service, index) => {
+    service.number = String(index + 1).padStart(2, '0');
+  });
+}
+
+function normalizeContent(content: SiteContent): SiteContent {
+  const next = structuredClone(content);
+  renumberServices(next.services);
+  return next;
+}
+
 export default function AdminApp() {
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
 
   // Messages State
   const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [messagesStats, setMessagesStats] = useState<ContactMessageStats>({
-    total: 0,
-    unread: 0,
-    read: 0,
-    replied: 0
-  });
   const [messagesLoading, setMessagesLoading] = useState(false);
+
+  const messagesStats = useMemo(() => {
+    let unread = 0;
+    let read = 0;
+    let replied = 0;
+    for (const message of messages) {
+      if (message.status === 'unread') unread++;
+      else if (message.status === 'read') read++;
+      else if (message.status === 'replied') replied++;
+    }
+    return { total: messages.length, unread, read, replied };
+  }, [messages]);
+
+  const showNotice = (message: string, type: Notice['type'] = 'success') => {
+    setNotice({ type, message });
+  };
 
   // Auth States
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -56,10 +80,10 @@ export default function AdminApp() {
 
   const loadContent = () => {
     setLoading(true);
-    fetch('/api/content')
+    fetch('/api/content', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) setContent(data);
+        if (data) setContent(normalizeContent(data as SiteContent));
       })
       .catch((err) => {
         console.warn('Failed to load content', err);
@@ -75,9 +99,6 @@ export default function AdminApp() {
         const data = await res.json();
         if (Array.isArray(data.messages)) {
           setMessages(data.messages);
-        }
-        if (data.stats) {
-          setMessagesStats(data.stats);
         }
       }
     } catch (err) {
@@ -116,7 +137,7 @@ export default function AdminApp() {
 
   const save = async () => {
     setSaving(true);
-    setNotice('');
+    setNotice(null);
     try {
       const response = await fetch('/api/admin/content', {
         method: 'PUT',
@@ -131,12 +152,12 @@ export default function AdminApp() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Could not save changes.');
       }
-      setNotice('Changes saved. Your live site will reflect the updated content.');
+      showNotice('Changes saved. Your live site will reflect the updated content.');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Save failed.');
+      showNotice(error instanceof Error ? error.message : 'Save failed.', 'error');
     } finally {
       setSaving(false);
-      window.setTimeout(() => setNotice(''), 5000);
+      window.setTimeout(() => setNotice(null), 5000);
     }
   };
 
@@ -158,27 +179,9 @@ export default function AdminApp() {
 
       const data = await response.json();
       if (data.ok && data.message) {
-        // Update local state and recount
         setMessages((prev) =>
           prev.map((m) => (m.id === id ? (data.message as ContactMessage) : m))
         );
-
-        // Recalculate stats
-        setMessagesStats((prev) => {
-          const updatedMessages = messages.map((m) =>
-            m.id === id ? (data.message as ContactMessage) : m
-          );
-          let unread = 0;
-          let read = 0;
-          let replied = 0;
-          for (const m of updatedMessages) {
-            if (m.status === 'unread') unread++;
-            else if (m.status === 'read') read++;
-            else if (m.status === 'replied') replied++;
-          }
-          return { total: updatedMessages.length, unread, read, replied };
-        });
-
         return true;
       }
       return false;
@@ -198,18 +201,6 @@ export default function AdminApp() {
       }
 
       setMessages((prev) => prev.filter((m) => m.id !== id));
-      setMessagesStats((prev) => {
-        const remaining = messages.filter((m) => m.id !== id);
-        let unread = 0;
-        let read = 0;
-        let replied = 0;
-        for (const m of remaining) {
-          if (m.status === 'unread') unread++;
-          else if (m.status === 'read') read++;
-          else if (m.status === 'replied') replied++;
-        }
-        return { total: remaining.length, unread, read, replied };
-      });
 
       return true;
     } catch {
@@ -219,7 +210,7 @@ export default function AdminApp() {
 
   const uploadProjectImage = async (index: number, file: File) => {
     setUploadingIndex(index);
-    setNotice('');
+    setNotice(null);
     try {
       const response = await fetch('/api/admin/media/presign', {
         method: 'POST',
@@ -255,12 +246,12 @@ export default function AdminApp() {
       update((d) => {
         d.projects[index].imageUrl = ticket.publicUrl;
       });
-      setNotice('Image uploaded. Save changes to publish it on the website.');
+      showNotice('Image uploaded. Save changes to publish it on the website.');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Image upload failed.');
+      showNotice(error instanceof Error ? error.message : 'Image upload failed.', 'error');
     } finally {
       setUploadingIndex(null);
-      window.setTimeout(() => setNotice(''), 7000);
+      window.setTimeout(() => setNotice(null), 7000);
     }
   };
 
@@ -297,12 +288,6 @@ export default function AdminApp() {
     );
   }
 
-  const isNoticeError =
-    notice.includes('required') ||
-    notice.includes('Could not') ||
-    notice.includes('failed') ||
-    notice.includes('expired');
-
   // 3. Authenticated Admin Workspace
   return (
     <div class="admin-shell">
@@ -337,7 +322,10 @@ export default function AdminApp() {
             </button>
           </div>
 
-          <ToastNotice message={notice} isError={isNoticeError} />
+          <ToastNotice
+            message={notice?.message ?? ''}
+            isError={notice?.type === 'error'}
+          />
 
           <StatsOverview
             servicesCount={content.services.length}
@@ -374,6 +362,7 @@ export default function AdminApp() {
             onRemoveService={(index) =>
               update((d) => {
                 d.services.splice(index, 1);
+                renumberServices(d.services);
               })
             }
             onAddService={() =>
@@ -384,6 +373,7 @@ export default function AdminApp() {
                   title: 'New service',
                   description: 'Describe this service for your clients.'
                 });
+                renumberServices(d.services);
               })
             }
           />

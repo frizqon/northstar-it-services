@@ -40,7 +40,12 @@ app.route('/api', contactRouter);
 app.route('/api/admin', authRouter);
 app.route('/api', mediaRouter);
 
-// Cloudflare static assets fallback
-app.all('*', async (c) => c.env.ASSETS.fetch(c.req.raw));
+// Unknown API routes must return JSON; every other path falls back to static assets.
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  return c.env.ASSETS.fetch(c.req.raw);
+});
 
 export default app;

@@ -16,6 +16,31 @@ const contactAttempts = new Map<string, { count: number; firstAttemptAt: number 
 const MAX_CONTACT_ATTEMPTS = 5;
 const CONTACT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
+// Per-isolate safety valve. For global rate limiting across all Cloudflare
+// isolates, configure a Cloudflare Rate Limiting rule or a Durable Object.
+const MAX_TRACKED_ENTRIES = 5000;
+
+function pruneExpiredEntries<T extends { firstAttemptAt: number }>(
+  map: Map<string, T>,
+  now: number,
+  windowMs: number,
+  keep?: (record: T) => boolean
+): void {
+  for (const [key, record] of map) {
+    if (now - record.firstAttemptAt > windowMs && !keep?.(record)) {
+      map.delete(key);
+    }
+  }
+
+  if (map.size < MAX_TRACKED_ENTRIES) return;
+
+  // Hard cap: drop oldest insertions so a flood cannot grow memory without bound.
+  for (const key of map.keys()) {
+    map.delete(key);
+    if (map.size <= MAX_TRACKED_ENTRIES / 2) break;
+  }
+}
+
 function getClientIp(c: Context<WorkerEnv>): string {
   const cfIp = c.req.header('cf-connecting-ip');
   if (cfIp) return cfIp;
@@ -35,6 +60,7 @@ function getClientIp(c: Context<WorkerEnv>): string {
 export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) => {
   const ip = getClientIp(c);
   const now = Date.now();
+  pruneExpiredEntries(loginAttempts, now, LOGIN_WINDOW_MS, (record) => record.blockedUntil > now);
   const record = loginAttempts.get(ip);
 
   if (record && record.blockedUntil > now) {
@@ -84,6 +110,7 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
 export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) => {
   const ip = getClientIp(c);
   const now = Date.now();
+  pruneExpiredEntries(contactAttempts, now, CONTACT_WINDOW_MS);
   const record = contactAttempts.get(ip);
 
   if (record) {

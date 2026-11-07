@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { ContactMessage, ContactMessageStats, MessageStatus } from '../../worker/types';
 
@@ -54,6 +54,20 @@ export function MessagesManager({
     setSelectedMessage(null);
     setReplyText('');
   };
+
+  useEffect(() => {
+    if (!selectedMessage) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedMessage(null);
+        setReplyText('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedMessage]);
 
   const handleQuickStatusChange = async (msg: ContactMessage, newStatus: MessageStatus) => {
     setActionInProgress(true);
@@ -314,11 +328,17 @@ export function MessagesManager({
       {/* Detail & Reply Modal */}
       {selectedMessage && (
         <div class="msg-modal-backdrop" onClick={handleCloseDetail}>
-          <div class="msg-modal-card" onClick={(e) => e.stopPropagation()}>
+          <div
+            class="msg-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="message-detail-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div class="msg-modal-header">
               <div>
                 <span class="section-kicker">MESSAGE DETAILS</span>
-                <h3>{selectedMessage.name}</h3>
+                <h3 id="message-detail-title">{selectedMessage.name}</h3>
                 <a
                   href={`mailto:${selectedMessage.email}`}
                   class="modal-sender-email"

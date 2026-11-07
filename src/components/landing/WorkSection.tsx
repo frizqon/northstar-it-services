@@ -58,7 +58,7 @@ export function WorkSection({ projects }: WorkSectionProps): JSX.Element {
             const hasValidImage = isSafeImageUrl(project.imageUrl);
 
             return (
-              <article class={`project-card ${project.tone}`} key={project.name}>
+              <article class={`project-card ${project.tone}`} key={i}>
                 <div class="project-visual">
                   <span class="project-index">CASE REF · 0{i + 1}</span>
                   {hasValidImage ? (

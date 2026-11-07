@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import app from '../../src/worker/index';
 import type { WorkerEnv } from '../../src/worker/types';
 import { DEFAULT_CONTENT } from '../../src/content/default';
+import { resetInMemoryStore } from '../../src/worker/lib/db';
 
 const mockEnv: WorkerEnv['Bindings'] = {
   ASSETS: { fetch: async () => new Response('Asset not found', { status: 404 }) },
@@ -11,6 +12,10 @@ const mockEnv: WorkerEnv['Bindings'] = {
   ADMIN_PASSWORD: 'REDACTED',
   ADMIN_JWT_SECRET: 'REDACTED'
 };
+
+beforeEach(() => {
+  resetInMemoryStore();
+});
 
 describe('Worker Integration: Security Headers & Health', () => {
   it('should return security headers on all responses', async () => {
@@ -41,12 +46,21 @@ describe('Worker Integration: Security Headers & Health', () => {
     expect(data.environment).toBe('development');
   });
 
-  it('GET /api/content should return content with no-store cache header', async () => {
+  it('GET /api/content should return content with short-lived cache header', async () => {
     const res = await app.request('/api/content', {}, mockEnv);
     const data = await res.json();
     expect(res.status).toBe(200);
-    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, max-age=60, stale-while-revalidate=300'
+    );
     expect(data.brand).toBe('NORTHSTAR');
+  });
+
+  it('GET /api/unknown should return a JSON 404 instead of an HTML asset', async () => {
+    const res = await app.request('/api/unknown', {}, mockEnv);
+    expect(res.status).toBe(404);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
+    expect(await res.json()).toEqual({ error: 'Not found' });
   });
 });
 
@@ -174,6 +188,18 @@ describe('Worker Integration: Content Mutation & DoS Protection', () => {
     expect(putRes.status).toBe(200);
     const putData = await putRes.json();
     expect(putData.ok).toBe(true);
+
+    // 3. Content now exposes an ETag and supports conditional requests
+    const contentRes = await app.request('/api/content', {}, mockEnv);
+    const etag = contentRes.headers.get('ETag');
+    expect(etag).toBeTruthy();
+
+    const notModifiedRes = await app.request(
+      '/api/content',
+      { headers: { 'If-None-Match': etag as string } },
+      mockEnv
+    );
+    expect(notModifiedRes.status).toBe(304);
   });
 
   it('POST /api/* should reject payloads exceeding 1 MB with 413 Payload Too Large', async () => {
@@ -361,7 +387,51 @@ describe('Worker Integration: Contact Messages Feature', () => {
     expect(replyData.message.reply_notes).toBe('Proposal email sent.');
     expect(replyData.message.replied_at).toBeDefined();
 
-    // 6. Delete message
+    // 6. Invalid reply notes and IDs are rejected
+    const invalidReplyRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ status: 'replied', replyNotes: 123 })
+      },
+      mockEnv
+    );
+    expect(invalidReplyRes.status).toBe(400);
+
+    const longReplyRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ status: 'replied', replyNotes: 'x'.repeat(2001) })
+      },
+      mockEnv
+    );
+    expect(longReplyRes.status).toBe(400);
+
+    const invalidIdRes = await app.request(
+      'https://northstar.example/api/admin/messages/abc',
+      {
+        method: 'DELETE',
+        headers: {
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        }
+      },
+      mockEnv
+    );
+    expect(invalidIdRes.status).toBe(400);
+
+    // 7. Delete message
     const deleteRes = await app.request(
       `https://northstar.example/api/admin/messages/${messageId}`,
       {
@@ -376,5 +446,19 @@ describe('Worker Integration: Contact Messages Feature', () => {
     expect(deleteRes.status).toBe(200);
     const deleteData = await deleteRes.json();
     expect(deleteData.ok).toBe(true);
+
+    // 8. Deleting the same message again must return 404
+    const missingRes = await app.request(
+      `https://northstar.example/api/admin/messages/${messageId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        }
+      },
+      mockEnv
+    );
+    expect(missingRes.status).toBe(404);
   });
 });

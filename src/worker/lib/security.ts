@@ -9,13 +9,12 @@ export function timingSafeEqual(a: string, b: string): boolean {
   const aBuf = enc.encode(a);
   const bBuf = enc.encode(b);
 
-  if (aBuf.byteLength !== bBuf.byteLength) {
-    return false;
-  }
+  // Compare the full maximum length so differing lengths do not short-circuit early.
+  const length = Math.max(aBuf.byteLength, bBuf.byteLength);
+  let mismatch = aBuf.byteLength ^ bBuf.byteLength;
 
-  let mismatch = 0;
-  for (let i = 0; i < aBuf.byteLength; i++) {
-    mismatch |= aBuf[i] ^ bBuf[i];
+  for (let i = 0; i < length; i++) {
+    mismatch |= (aBuf[i] ?? 0) ^ (bBuf[i] ?? 0);
   }
 
   return mismatch === 0;

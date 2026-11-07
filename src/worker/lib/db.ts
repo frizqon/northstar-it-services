@@ -9,11 +9,13 @@ import type {
 } from '../types';
 
 let inMemoryContent: SiteContent = structuredClone(DEFAULT_CONTENT);
+let inMemoryContentUpdatedAt: string | null = null;
 let inMemoryMessages: ContactMessage[] = [];
 let nextMessageId = 1;
 
 export function resetInMemoryStore(): void {
   inMemoryContent = structuredClone(DEFAULT_CONTENT);
+  inMemoryContentUpdatedAt = null;
   inMemoryMessages = [];
   nextMessageId = 1;
 }
@@ -145,20 +147,38 @@ export function validateContactInput(data: unknown): {
   };
 }
 
+export type SiteContentRecord = {
+  content: SiteContent;
+  updatedAt: string | null;
+};
+
+function toIsoString(value: unknown): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 export async function getSiteContent(
   env: WorkerEnv['Bindings'],
   isLocal: boolean
-): Promise<SiteContent> {
+): Promise<SiteContentRecord> {
   if (!env.DATABASE_URL) {
     if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
-      return inMemoryContent;
+      return {
+        content: inMemoryContent,
+        updatedAt: inMemoryContentUpdatedAt
+      };
     }
     throw new Error('DATABASE_URL is not configured');
   }
 
   const sql = neon(env.DATABASE_URL);
-  const rows = await sql`SELECT content FROM site_content WHERE id = 1 LIMIT 1`;
-  return (rows[0]?.content as SiteContent | undefined) ?? DEFAULT_CONTENT;
+  const rows = await sql`SELECT content, updated_at FROM site_content WHERE id = 1 LIMIT 1`;
+  const row = rows[0] as { content?: SiteContent; updated_at?: unknown } | undefined;
+  return {
+    content: row?.content ?? DEFAULT_CONTENT,
+    updatedAt: toIsoString(row?.updated_at)
+  };
 }
 
 export async function saveSiteContent(
@@ -169,6 +189,7 @@ export async function saveSiteContent(
   if (!env.DATABASE_URL) {
     if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
       inMemoryContent = structuredClone(content);
+      inMemoryContentUpdatedAt = new Date().toISOString();
       return;
     }
     throw new Error('Database is not configured');
@@ -181,27 +202,6 @@ export async function saveSiteContent(
     ON CONFLICT (id) DO UPDATE SET
       content = EXCLUDED.content,
       updated_at = now()
-  `;
-}
-
-// Ensure contact_messages table exists in Postgres
-async function ensureContactTable(sql: any): Promise<void> {
-  await sql`
-    CREATE TABLE IF NOT EXISTS contact_messages (
-      id SERIAL PRIMARY KEY,
-      name text NOT NULL,
-      email text NOT NULL,
-      message text NOT NULL,
-      status text NOT NULL DEFAULT 'unread',
-      read_at timestamptz,
-      reply_notes text,
-      replied_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `;
-  await sql`
-    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS read_at timestamptz;
   `;
 }
 
@@ -232,8 +232,6 @@ export async function saveContactMessage(
   }
 
   const sql = neon(env.DATABASE_URL);
-  await ensureContactTable(sql);
-
   const rows = await sql`
     INSERT INTO contact_messages (name, email, message, status, created_at, updated_at)
     VALUES (${input.name}, ${input.email}, ${input.message}, 'unread', now(), now())
@@ -259,8 +257,6 @@ export async function getContactMessages(
   }
 
   const sql = neon(env.DATABASE_URL);
-  await ensureContactTable(sql);
-
   if (statusFilter && statusFilter !== 'all') {
     const rows = await sql`
       SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
@@ -304,8 +300,6 @@ export async function getContactMessageStats(
   }
 
   const sql = neon(env.DATABASE_URL);
-  await ensureContactTable(sql);
-
   const rows = await sql`
     SELECT status, count(*)::int as count
     FROM contact_messages
@@ -367,8 +361,6 @@ export async function updateContactMessageStatus(
   }
 
   const sql = neon(env.DATABASE_URL);
-  await ensureContactTable(sql);
-
   const rows = await sql`
     UPDATE contact_messages
     SET status = ${status},
@@ -403,10 +395,8 @@ export async function deleteContactMessage(
   }
 
   const sql = neon(env.DATABASE_URL);
-  await ensureContactTable(sql);
-
-  await sql`
-    DELETE FROM contact_messages WHERE id = ${id}
+  const rows = await sql`
+    DELETE FROM contact_messages WHERE id = ${id} RETURNING id
   `;
-  return true;
+  return rows.length > 0;
 }
