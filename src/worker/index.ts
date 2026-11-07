@@ -28,11 +28,25 @@ const app = new Hono<Env>();
 let demoContent: SiteContent = structuredClone(DEFAULT_CONTENT);
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
-const DEFAULT_JWT_SECRET = 'northstar-jwt-auth-secret-change-in-production';
+function isLocalDev(c: Context<Env>): boolean {
+  try {
+    const url = new URL(c.req.url);
+    const hostname = url.hostname;
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.localhost') ||
+      c.env.DEV_AUTH_BYPASS === 'true'
+    );
+  } catch {
+    return false;
+  }
+}
 
-async function getContent(env: Env['Bindings']): Promise<SiteContent> {
+async function getContent(env: Env['Bindings'], isLocal: boolean): Promise<SiteContent> {
   if (!env.DATABASE_URL) {
-    if (env.DEV_AUTH_BYPASS === 'true') return demoContent;
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') return demoContent;
     throw new Error('DATABASE_URL is not configured');
   }
   const sql = neon(env.DATABASE_URL);
@@ -42,15 +56,20 @@ async function getContent(env: Env['Bindings']): Promise<SiteContent> {
 
 async function checkAdminAuth(c: Context<Env>): Promise<{ authenticated: boolean; user?: { username: string } }> {
   const env = c.env;
+  const isLocal = isLocalDev(c);
 
   // 1. Session Cookie Check
   const sessionToken = getCookie(c, 'admin_session');
   if (sessionToken) {
-    try {
-      const secret = new TextEncoder().encode(env.ADMIN_JWT_SECRET || DEFAULT_JWT_SECRET);
-      const { payload } = await jwtVerify(sessionToken, secret);
-      return { authenticated: true, user: { username: (payload.user as string) || 'admin' } };
-    } catch {}
+    // In production, ADMIN_JWT_SECRET must be explicitly set. In local dev, a fallback secret is permitted.
+    const secretStr = env.ADMIN_JWT_SECRET || (isLocal ? 'REDACTED' : undefined);
+    if (secretStr) {
+      try {
+        const secret = new TextEncoder().encode(secretStr);
+        const { payload } = await jwtVerify(sessionToken, secret);
+        return { authenticated: true, user: { username: (payload.user as string) || 'admin' } };
+      } catch {}
+    }
   }
 
   // 2. Cloudflare Access JWT Check
@@ -68,8 +87,8 @@ async function checkAdminAuth(c: Context<Env>): Promise<{ authenticated: boolean
     } catch {}
   }
 
-  // 3. Fallback DEV_AUTH_BYPASS only if explicitly set AND no password is configured
-  if (env.DEV_AUTH_BYPASS === 'true' && !env.ADMIN_PASSWORD) {
+  // 3. Fallback DEV_AUTH_BYPASS only in local development
+  if (isLocal && env.DEV_AUTH_BYPASS === 'true' && !env.ADMIN_PASSWORD) {
     return { authenticated: true, user: { username: 'dev-bypass' } };
   }
 
@@ -84,11 +103,15 @@ const verifyAdmin: MiddlewareHandler<Env> = async (c, next) => {
   return next();
 };
 
-app.get('/api/health', c => c.json({ ok: true, mode: c.env.DATABASE_URL ? 'neon' : c.env.DEV_AUTH_BYPASS === 'true' ? 'demo' : 'not-configured' }));
+app.get('/api/health', c => c.json({
+  ok: true,
+  mode: c.env.DATABASE_URL ? 'neon' : (isLocalDev(c) && c.env.DEV_AUTH_BYPASS === 'true') ? 'demo' : 'not-configured',
+  environment: isLocalDev(c) ? 'development' : 'production'
+}));
 
 app.get('/api/content', async c => {
   try {
-    return c.json(await getContent(c.env), 200, { 'Cache-Control': 'no-store' });
+    return c.json(await getContent(c.env, isLocalDev(c)), 200, { 'Cache-Control': 'no-store' });
   } catch (error) {
     console.error('Read content failed', error);
     return c.json({ error: 'Content is temporarily unavailable' }, 503);
@@ -112,14 +135,27 @@ app.post('/api/admin/login', async c => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const expectedUser = c.env.ADMIN_USERNAME || 'admin';
-  const expectedPass = c.env.ADMIN_PASSWORD || 'REDACTED';
+  const isLocal = isLocalDev(c);
+
+  // In production, credentials MUST be explicitly configured in Cloudflare Worker secrets.
+  // Default fallback credentials are ONLY available in local development.
+  const expectedUser = c.env.ADMIN_USERNAME || (isLocal ? 'admin' : undefined);
+  const expectedPass = c.env.ADMIN_PASSWORD || (isLocal ? 'REDACTED' : undefined);
+  const secretStr = c.env.ADMIN_JWT_SECRET || (isLocal ? 'REDACTED' : undefined);
+
+  if (!expectedPass || !expectedUser || !secretStr) {
+    return c.json({
+      error: isLocal
+        ? 'Admin credentials are not configured.'
+        : 'Admin authentication is not configured in production. Set ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_JWT_SECRET in Cloudflare Worker secrets.'
+    }, 503);
+  }
 
   if (!body.username || !body.password || body.username !== expectedUser || body.password !== expectedPass) {
     return c.json({ error: 'Invalid username or password' }, 401);
   }
 
-  const jwtSecret = new TextEncoder().encode(c.env.ADMIN_JWT_SECRET || DEFAULT_JWT_SECRET);
+  const jwtSecret = new TextEncoder().encode(secretStr);
   const token = await new SignJWT({ user: expectedUser, role: 'admin' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -155,7 +191,8 @@ app.put('/api/admin/content', verifyAdmin, async c => {
     return c.json({ error: 'Content is missing required fields' }, 400);
   }
 
-  if (!c.env.DATABASE_URL && c.env.DEV_AUTH_BYPASS !== 'true') {
+  const isLocal = isLocalDev(c);
+  if (!c.env.DATABASE_URL && (!isLocal || c.env.DEV_AUTH_BYPASS !== 'true')) {
     return c.json({ error: 'Database is not configured' }, 503);
   }
 
