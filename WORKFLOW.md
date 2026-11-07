@@ -1,6 +1,6 @@
 # Alur Kerja Pengembangan (Development Workflow)
 
-Dokumen ini menjelaskan standar alur kerja pengembangan tim untuk repositori **Northstar IT Services**, mulai dari koding di cabang `dev` hingga otomatisasi deployment ke produksi melalui cabang `main`.
+Dokumen ini menjelaskan standar alur kerja pengembangan tim untuk repositori **Northstar IT Services**, mulai dari koding di cabang `dev`, verifikasi tipe data dan unit test, hingga otomatisasi deployment ke produksi melalui cabang `main`.
 
 ---
 
@@ -9,7 +9,7 @@ Dokumen ini menjelaskan standar alur kerja pengembangan tim untuk repositori **N
 1. **Cabang `main` (Production)**:
    - Cabang rilis utama dan stabil.
    - Terkunci dari push langsung yang tidak terencana.
-   - Setiap pembaruan yang masuk ke `main` akan **otomatis memicu deployment ke Cloudflare Workers**.
+   - Setiap pembaruan yang masuk ke `main` akan **otomatis memicu quality gate CI (typecheck & test)** lalu deployment ke Cloudflare Workers.
 2. **Cabang `dev` (Development & Staging)**:
    - Cabang tempat koding sehari-hari dilakukan.
    - Push ke cabang `dev` **tidak akan** memicu deploy ke produksi.
@@ -23,10 +23,11 @@ Dokumen ini menjelaskan standar alur kerja pengembangan tim untuk repositori **N
 ```mermaid
 flowchart LR
     A["💻 Koding di Cabang dev"] --> B["🧪 Pengujian Lokal (npm run dev)"]
-    B --> C["📤 Git Commit & Push ke origin dev"]
-    C --> D["🔀 Buat Pull Request (dev ➔ main)"]
-    D --> E["✅ Review & Merge PR"]
-    E --> F["🚀 GitHub Actions Auto Deploy ke Cloudflare"]
+    B --> C["🔍 Typecheck & Unit Test (npm run typecheck && npm run test)"]
+    C --> D["📤 Git Commit & Push ke origin dev"]
+    D --> E["🔀 Buat Pull Request (dev ➔ main)"]
+    E --> F["✅ Review & Merge PR"]
+    F --> G["🚀 GitHub Actions (Test -> Build -> Deploy)"]
 ```
 
 ---
@@ -63,7 +64,23 @@ npm run dev
 
 ---
 
-### Langkah 3: Simpan dan Push ke Cabang `dev`
+### Langkah 3: Jalankan Quality Check (Typecheck & Test)
+
+Sebelum melakukan commit, wajib jalankan verifikasi tipe data dan unit test:
+
+```sh
+# Verifikasi tipe data TypeScript
+npm run typecheck
+
+# Jalankan suite unit dan integration test
+npm run test
+```
+
+Pastikan semua pengujian lulus (*passed*) tanpa error sebelum lanjut ke langkah berikutnya.
+
+---
+
+### Langkah 4: Simpan dan Push ke Cabang `dev`
 
 Setelah fitur atau perbaikan selesai dibuat dan diuji di lokal:
 
@@ -74,7 +91,7 @@ git status
 # Tambahkan berkas yang diubah
 git add .
 
-# Buat commit dengan pesan yang deskriptif
+# Buat commit dengan pesan konvensional (feat, fix, refactor, test, docs)
 git commit -m "feat: tambahkan fitur XYZ"
 
 # Push ke remote cabang dev
@@ -86,7 +103,7 @@ git push origin dev
 
 ---
 
-### Langkah 4: Buat Pull Request (MR) ke Cabang `main`
+### Langkah 5: Buat Pull Request (PR) ke Cabang `main`
 
 Jika pekerjaan di `dev` sudah siap dirilis ke produksi, buat Pull Request dari `dev` ke `main`:
 
@@ -105,13 +122,13 @@ gh pr create --base main --head dev --title "Release: Fitur XYZ" --body "Rangkum
 
 ---
 
-### Langkah 5: Review dan Merge PR
+### Langkah 6: Review dan Merge PR
 
 Setelah PR disetujui:
 
 #### Opsi A: Menggunakan GitHub CLI (`gh`)
 ```sh
-# Merge PR dan buat merge commit (atau squash)
+# Merge PR dan buat merge commit
 gh pr merge --merge
 ```
 
@@ -120,9 +137,9 @@ Klik tombol hijau **Merge pull request** ➔ **Confirm merge**.
 
 ---
 
-### Langkah 6: Pemantauan Auto Deployment
+### Langkah 7: Pemantauan Auto Deployment
 
-Begitu kode di-merge ke cabang `main`, GitHub Actions akan otomatis memulai proses build dan deploy:
+Begitu kode di-merge ke cabang `main`, GitHub Actions akan otomatis memvalidasi `typecheck`, `test`, lalu menjalankan `build` dan `deploy`:
 
 ```sh
 # Pantau status pipeline GitHub Actions dari terminal
@@ -137,7 +154,7 @@ Hasil deploy langsung aktif di:
 
 ---
 
-### Langkah 7: Sinkronisasi Ulang Cabang Lokal
+### Langkah 8: Sinkronisasi Ulang Cabang Lokal
 
 Setelah PR di-merge ke `main`, sinkronkan cabang `main` dan `dev` di komputer lokal Anda:
 
@@ -160,6 +177,9 @@ git rebase main   # atau: git merge main
 | **Cek status cabang** | `git status` |
 | **Pindah ke dev** | `git checkout dev` |
 | **Menjalankan dev lokal** | `npm run dev` |
+| **Cek tipe TypeScript** | `npm run typecheck` |
+| **Jalankan unit tests** | `npm run test` |
+| **Jalankan e2e tests** | `npm run test:e2e` |
 | **Commit & push ke dev** | `git add . && git commit -m "..." && git push origin dev` |
 | **Buat PR ke main** | `gh pr create --base main --head dev` |
 | **Cek status auto deploy** | `gh run list` |

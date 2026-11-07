@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://northstar-it-services.frizqon.workers.dev/sitemap.xml
