@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 interface FooterProps {
   brand: string;
@@ -12,7 +13,10 @@ export function Footer({ brand }: FooterProps): JSX.Element {
         {brand}
       </a>
       <span>© {new Date().getFullYear()} {brand}. Thoughtful technology, built together.</span>
-      <a href="#top">Back to top ↑</a>
+      <div class="footer-actions">
+        <ThemeToggle compact />
+        <a href="#top" class="footer-top-link">Back to top ↑</a>
+      </div>
     </footer>
   );
 }

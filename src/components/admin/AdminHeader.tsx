@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 interface AdminHeaderProps {
   currentUser: string;
@@ -22,6 +23,8 @@ export function AdminHeader({
       </div>
 
       <div class="admin-topbar-right">
+        <ThemeToggle compact className="admin-theme-switch" />
+
         {unreadCount > 0 && (
           <button
             type="button"
