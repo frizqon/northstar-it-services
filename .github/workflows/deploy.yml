@@ -36,12 +36,14 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Send Email Notification via Resend
+      - name: Send Notifications (Email & Telegram)
         if: always()
         run: node .github/scripts/send-notification.mjs
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFICATION_EMAIL: frizqon@gmail.com
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           JOB_STATUS: ${{ job.status }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           COMMIT_SHA: ${{ github.sha }}
