@@ -41,6 +41,7 @@ export type ContactMessage = {
   email: string;
   message: string;
   status: MessageStatus;
+  read_at?: string | null;
   reply_notes?: string | null;
   replied_at?: string | null;
   created_at: string;

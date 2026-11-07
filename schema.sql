@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   email text NOT NULL,
   message text NOT NULL,
   status text NOT NULL DEFAULT 'unread',
+  read_at timestamptz,
   reply_notes text,
   replied_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),

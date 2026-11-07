@@ -193,11 +193,15 @@ async function ensureContactTable(sql: any): Promise<void> {
       email text NOT NULL,
       message text NOT NULL,
       status text NOT NULL DEFAULT 'unread',
+      read_at timestamptz,
       reply_notes text,
       replied_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+  await sql`
+    ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS read_at timestamptz;
   `;
 }
 
@@ -215,6 +219,7 @@ export async function saveContactMessage(
         email: input.email,
         message: input.message,
         status: 'unread',
+        read_at: null,
         reply_notes: null,
         replied_at: null,
         created_at: now,
@@ -232,7 +237,7 @@ export async function saveContactMessage(
   const rows = await sql`
     INSERT INTO contact_messages (name, email, message, status, created_at, updated_at)
     VALUES (${input.name}, ${input.email}, ${input.message}, 'unread', now(), now())
-    RETURNING id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+    RETURNING id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
   `;
 
   return rows[0] as unknown as ContactMessage;
@@ -258,7 +263,7 @@ export async function getContactMessages(
 
   if (statusFilter && statusFilter !== 'all') {
     const rows = await sql`
-      SELECT id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+      SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
       FROM contact_messages
       WHERE status = ${statusFilter}
       ORDER BY created_at DESC
@@ -267,7 +272,7 @@ export async function getContactMessages(
   }
 
   const rows = await sql`
-    SELECT id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+    SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
     FROM contact_messages
     ORDER BY created_at DESC
   `;
@@ -342,6 +347,12 @@ export async function updateContactMessageStatus(
       const updated: ContactMessage = {
         ...inMemoryMessages[idx],
         status,
+        read_at:
+          status === 'read'
+            ? inMemoryMessages[idx].read_at || now
+            : status === 'unread'
+            ? null
+            : inMemoryMessages[idx].read_at,
         reply_notes: replyNotes !== null ? replyNotes : inMemoryMessages[idx].reply_notes,
         replied_at:
           status === 'replied'
@@ -361,11 +372,16 @@ export async function updateContactMessageStatus(
   const rows = await sql`
     UPDATE contact_messages
     SET status = ${status},
+        read_at = CASE
+          WHEN ${status} = 'read' THEN COALESCE(read_at, now())
+          WHEN ${status} = 'unread' THEN NULL
+          ELSE read_at
+        END,
         reply_notes = COALESCE(${replyNotes}, reply_notes),
         replied_at = CASE WHEN ${status} = 'replied' THEN COALESCE(replied_at, now()) ELSE replied_at END,
         updated_at = now()
     WHERE id = ${id}
-    RETURNING id, name, email, message, status, reply_notes, replied_at, created_at, updated_at
+    RETURNING id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
   `;
 
   if (!rows || rows.length === 0) return null;
@@ -389,7 +405,7 @@ export async function deleteContactMessage(
   const sql = neon(env.DATABASE_URL);
   await ensureContactTable(sql);
 
-  const result = await sql`
+  await sql`
     DELETE FROM contact_messages WHERE id = ${id}
   `;
   return true;

@@ -136,3 +136,12 @@
   .contact-meta{margin-top:32px}
   .msg-snippet{max-width:200px}
 }
+
+/* Read Timestamp & Meta Details */
+.status-col-wrapper{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.status-timestamp{font:9px 'DM Mono',monospace;color:#6d7f6c;line-height:1.2}
+.modal-meta-dates{display:flex;gap:24px;flex-wrap:wrap}
+.text-read-highlight{color:#40523e}
+.text-replied-highlight{color:#2e6c1a}
+.read-notice-box{display:flex;align-items:center;gap:10px;background:#f3f7f0;border:1px solid #dce8d6;padding:10px 14px;border-radius:4px;font-size:11px;color:#3d5934}
+.dot-read{width:7px;height:7px;border-radius:50%;background:#587d49}

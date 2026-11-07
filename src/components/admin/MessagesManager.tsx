@@ -38,8 +38,12 @@ export function MessagesManager({
     if (msg.status === 'unread') {
       try {
         await onUpdateStatus(msg.id, 'read');
-        // Update local selectedMessage state
-        setSelectedMessage((prev) => (prev && prev.id === msg.id ? { ...prev, status: 'read' } : prev));
+        const now = new Date().toISOString();
+        setSelectedMessage((prev) =>
+          prev && prev.id === msg.id
+            ? { ...prev, status: 'read', read_at: prev.read_at || now }
+            : prev
+        );
       } catch {
         // Silent catch on read transition
       }
@@ -57,8 +61,22 @@ export function MessagesManager({
       const ok = await onUpdateStatus(msg.id, newStatus);
       if (ok) {
         setManagerNotice(`Message marked as ${newStatus}`);
+        const now = new Date().toISOString();
         if (selectedMessage && selectedMessage.id === msg.id) {
-          setSelectedMessage((prev) => (prev ? { ...prev, status: newStatus } : null));
+          setSelectedMessage((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: newStatus,
+                  read_at:
+                    newStatus === 'read'
+                      ? prev.read_at || now
+                      : newStatus === 'unread'
+                      ? null
+                      : prev.read_at
+                }
+              : null
+          );
         }
       }
     } finally {
@@ -148,7 +166,7 @@ export function MessagesManager({
         <div>
           <span class="section-kicker">INBOX & INQUIRIES</span>
           <h2>Client Inquiries & Messages</h2>
-          <p>Review contact form submissions, reply directly to clients, and track response statuses.</p>
+          <p>Review contact form submissions, reply directly to clients, and track read/response timestamps.</p>
         </div>
         <div class="panel-actions">
           <button
@@ -221,7 +239,7 @@ export function MessagesManager({
           <table class="messages-table">
             <thead>
               <tr>
-                <th style={{ width: '130px' }}>Status</th>
+                <th style={{ width: '150px' }}>Status</th>
                 <th style={{ width: '220px' }}>Sender</th>
                 <th>Message</th>
                 <th style={{ width: '160px' }}>Received</th>
@@ -236,14 +254,21 @@ export function MessagesManager({
                   onClick={() => handleOpenDetail(msg)}
                 >
                   <td>
-                    <span class={`msg-badge badge-${msg.status}`}>
-                      {msg.status === 'unread' && <span class="badge-dot" aria-hidden="true" />}
-                      {msg.status === 'unread'
-                        ? 'Unread'
-                        : msg.status === 'read'
-                        ? 'Read'
-                        : 'Replied ✓'}
-                    </span>
+                    <div class="status-col-wrapper">
+                      <span class={`msg-badge badge-${msg.status}`}>
+                        {msg.status === 'unread' && <span class="badge-dot" aria-hidden="true" />}
+                        {msg.status === 'unread'
+                          ? 'Unread'
+                          : msg.status === 'read'
+                          ? 'Read'
+                          : 'Replied ✓'}
+                      </span>
+                      {msg.read_at && (
+                        <span class="status-timestamp" title={`Read on ${formatDate(msg.read_at)}`}>
+                          Read {formatDate(msg.read_at)}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <div class="sender-info">
@@ -313,9 +338,23 @@ export function MessagesManager({
 
             <div class="msg-modal-body">
               <div class="modal-meta-row">
-                <div>
-                  <span class="meta-label">Received:</span>
-                  <strong>{formatDate(selectedMessage.created_at)}</strong>
+                <div class="modal-meta-dates">
+                  <div>
+                    <span class="meta-label">Received:</span>
+                    <strong>{formatDate(selectedMessage.created_at)}</strong>
+                  </div>
+                  {selectedMessage.read_at && (
+                    <div>
+                      <span class="meta-label">Read at:</span>
+                      <strong class="text-read-highlight">{formatDate(selectedMessage.read_at)}</strong>
+                    </div>
+                  )}
+                  {selectedMessage.replied_at && (
+                    <div>
+                      <span class="meta-label">Replied at:</span>
+                      <strong class="text-replied-highlight">{formatDate(selectedMessage.replied_at)}</strong>
+                    </div>
+                  )}
                 </div>
                 <div class="status-toggle-group">
                   <span class="meta-label">Status:</span>
@@ -347,6 +386,15 @@ export function MessagesManager({
                   </div>
                 </div>
               </div>
+
+              {selectedMessage.read_at && selectedMessage.status === 'read' && (
+                <div class="read-notice-box">
+                  <span class="badge-dot dot-read" aria-hidden="true" />
+                  <div>
+                    <strong>Message was read on {formatDate(selectedMessage.read_at)}</strong>
+                  </div>
+                </div>
+              )}
 
               {selectedMessage.status === 'replied' && selectedMessage.replied_at && (
                 <div class="replied-notice-box">

@@ -328,6 +328,8 @@ describe('Worker Integration: Contact Messages Feature', () => {
     expect(markReadRes.status).toBe(200);
     const markReadData = await markReadRes.json();
     expect(markReadData.message.status).toBe('read');
+    expect(markReadData.message.read_at).toBeDefined();
+    expect(typeof markReadData.message.read_at).toBe('string');
 
     // 5. Update message status to 'replied' with reply notes
     const replyRes = await app.request(
