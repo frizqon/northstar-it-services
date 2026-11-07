@@ -1,0 +1,10 @@
+# Copy this file to .dev.vars for local development, then replace the placeholders.
+# Never commit .dev.vars or share these values publicly.
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+AWS_ENDPOINT_URL_S3=https://YOUR-BRANCH.storage.c-REGION.aws.neon.tech
+AWS_REGION=us-east-2
+AWS_ACCESS_KEY_ID=YOUR_NEON_STORAGE_TOKEN_ID
+AWS_SECRET_ACCESS_KEY=YOUR_NEON_STORAGE_SECRET
+OBJECT_STORAGE_BUCKET=northstar-assets
+CF_ACCESS_TEAM_DOMAIN=YOUR_TEAM.cloudflareaccess.com
+CF_ACCESS_AUD=YOUR_ACCESS_APPLICATION_AUD

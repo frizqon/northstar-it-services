@@ -1,0 +1,11 @@
+name = "northstar-it-services"
+main = "src/worker/index.ts"
+compatibility_date = "2026-05-03"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[observability]
+enabled = true
