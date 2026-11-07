@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import type { Project } from '../../../content/default';
 import { InputField } from '../../ui/InputField';
+import { isSafeImageUrl } from '../../../utils/url';
 
 interface ProjectsEditorProps {
   projects: Project[];
@@ -84,7 +85,7 @@ export function ProjectsEditor({
               {uploadingIndex === i && <small class="upload-hint">Uploading securely…</small>}
             </label>
 
-            {project.imageUrl && (
+            {project.imageUrl && isSafeImageUrl(project.imageUrl) && (
               <div class="uploaded-preview">
                 <img src={project.imageUrl} alt="Project image preview" />
                 <span>Uploaded image ready to publish</span>

@@ -3,8 +3,25 @@ import type { WorkerEnv } from '../types';
 
 export const securityHeaders: MiddlewareHandler<WorkerEnv> = async (c, next) => {
   await next();
+
+  // Basic security headers
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  // Content Security Policy
+  const csp = [
+    "default-src 'self'",
+    "img-src 'self' data: https: blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "script-src 'self' 'unsafe-inline'",
+    "connect-src 'self' https:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+
+  c.header('Content-Security-Policy', csp);
 };

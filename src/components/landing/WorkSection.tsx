@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import type { Project } from '../../content/default';
+import { isSafeImageUrl } from '../../utils/url';
 
 interface WorkSectionProps {
   projects: Project[];
@@ -50,33 +51,37 @@ export function WorkSection({ projects }: WorkSectionProps): JSX.Element {
         </div>
 
         <div class="project-grid">
-          {projects.map((project, i) => (
-            <article class={`project-card ${project.tone}`} key={project.name}>
-              <div class="project-visual">
-                <span class="project-index">0{i + 1}</span>
-                {project.imageUrl ? (
-                  <img
-                    class="project-real-image"
-                    src={project.imageUrl}
-                    alt={project.name}
-                    loading="lazy"
-                  />
-                ) : (
-                  <MockWindowVisual category={project.category} />
-                )}
-              </div>
+          {projects.map((project, i) => {
+            const hasValidImage = isSafeImageUrl(project.imageUrl);
 
-              <div class="project-copy">
-                <span class="section-kicker">{project.category}</span>
-                <h3>{project.name}</h3>
-                <p>{project.description}</p>
-                <div class="project-result">
-                  <span aria-hidden="true">↗</span>
-                  {project.result}
+            return (
+              <article class={`project-card ${project.tone}`} key={project.name}>
+                <div class="project-visual">
+                  <span class="project-index">0{i + 1}</span>
+                  {hasValidImage ? (
+                    <img
+                      class="project-real-image"
+                      src={project.imageUrl}
+                      alt={project.name}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <MockWindowVisual category={project.category} />
+                  )}
                 </div>
-              </div>
-            </article>
-          ))}
+
+                <div class="project-copy">
+                  <span class="section-kicker">{project.category}</span>
+                  <h3>{project.name}</h3>
+                  <p>{project.description}</p>
+                  <div class="project-result">
+                    <span aria-hidden="true">↗</span>
+                    {project.result}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>

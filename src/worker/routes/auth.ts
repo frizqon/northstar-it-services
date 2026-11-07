@@ -3,6 +3,7 @@ import { setCookie, deleteCookie } from 'hono/cookie';
 import { SignJWT } from 'jose';
 import type { WorkerEnv } from '../types';
 import { checkAdminAuth } from '../middleware/auth';
+import { loginRateLimiter } from '../middleware/rateLimit';
 import { isLocalDev, timingSafeEqual } from '../lib/security';
 
 export const authRouter = new Hono<WorkerEnv>();
@@ -15,7 +16,7 @@ authRouter.get('/me', async (c) => {
   return c.json({ authenticated: false }, 401);
 });
 
-authRouter.post('/login', async (c) => {
+authRouter.post('/login', loginRateLimiter, async (c) => {
   let body: { username?: string; password?: string };
   try {
     body = await c.req.json();
