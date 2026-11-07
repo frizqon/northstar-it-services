@@ -79,7 +79,7 @@ Northstar implements a precision three-state theme controller (`auto`, `light`, 
 | **Card H3** | `Manrope, sans-serif` | `18px - 21px` / `1.2` | `600` - `700` | `-0.035em` | Service title, project title, modal headline |
 | **Body Primary**| `DM Sans, sans-serif` | `14px - 15px` / `1.75` | `400` - `500` | `0` | Lead paragraphs, descriptions, input texts |
 | **UI Control** | `DM Sans, sans-serif` | `11px - 13px` / `1.4` | `600` - `700` | `0` | Buttons, navigation labels, tab switches |
-| **Telemetry** | `DM Mono, monospace` | `8px - 11px` / `1.3` | `500` - `600` | `+0.11em` | Section kickers, index numbers (`01`), timestamps, status badges |
+| **Telemetry** | `DM Mono, monospace` | `11px - 12px` / `1.3` | `600` | `+0.11em` | Section kickers, index numbers (`01`), timestamps, status badges |
 
 ### Typographic Principles:
 1. **Never use generic fonts like Inter, Roboto, or Arial** without purposeful styling.
