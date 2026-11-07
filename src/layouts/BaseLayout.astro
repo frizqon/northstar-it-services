@@ -7,6 +7,7 @@ interface Props {
   robots?: string;
   themeColor?: string;
   ogType?: string;
+  image?: string;
 }
 
 const {
@@ -14,10 +15,46 @@ const {
   description,
   robots = 'index,follow',
   themeColor = '#0c1514',
-  ogType = 'website'
+  ogType = 'website',
+  image = '/og-image.png'
 } = Astro.props;
 
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site || Astro.url.origin).href;
+const baseUrl = Astro.site || new URL(Astro.url.origin);
+const canonicalUrl = new URL(Astro.url.pathname, baseUrl).href;
+const ogImageUrl = new URL(image, baseUrl).href;
+
+const isPublicPage = !robots.includes('noindex');
+const schemaData = isPublicPage
+  ? {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebSite',
+          '@id': new URL('/#website', baseUrl).href,
+          'url': baseUrl.href,
+          'name': 'Northstar IT Services',
+          'description': description,
+          'inLanguage': 'en-US'
+        },
+        {
+          '@type': 'ProfessionalService',
+          '@id': new URL('/#organization', baseUrl).href,
+          'name': 'Northstar IT Services',
+          'url': baseUrl.href,
+          'logo': new URL('/favicon.svg', baseUrl).href,
+          'image': ogImageUrl,
+          'description': description,
+          'address': {
+            '@type': 'PostalAddress',
+            'addressLocality': 'Jakarta',
+            'addressCountry': 'ID'
+          },
+          'areaServed': ['ID', 'APAC'],
+          'priceRange': '$$'
+        }
+      ]
+    }
+  : null;
 ---
 
 <!doctype html>
@@ -38,13 +75,23 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || Astro.url.origin)
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Northstar IT Services" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
 
     <title>{title}</title>
+
+    {schemaData && (
+      <script type="application/ld+json" set:html={JSON.stringify(schemaData)} />
+    )}
 
     <!-- Anti-flicker Theme Initializer -->
     <script is:inline>

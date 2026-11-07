@@ -55,12 +55,18 @@ describe('Security Utility: isLocalDev', () => {
 });
 
 describe('Security Utility: isSafeOrigin', () => {
-  function createOriginContext(origin?: string, reqUrl = 'https://northstar.example/api/admin/content') {
+  function createOriginContext(
+    origin?: string,
+    reqUrl = 'https://northstar.example/api/admin/content',
+    secFetchSite?: string
+  ) {
     return {
       req: {
         url: reqUrl,
         header: (name: string) => {
-          if (name.toLowerCase() === 'origin') return origin;
+          const lower = name.toLowerCase();
+          if (lower === 'origin') return origin;
+          if (lower === 'sec-fetch-site') return secFetchSite;
           return undefined;
         }
       }
@@ -80,5 +86,15 @@ describe('Security Utility: isSafeOrigin', () => {
   it('should reject requests where Origin host differs from request host (CSRF protection)', () => {
     const ctx = createOriginContext('https://malicious-attacker.com');
     expect(isSafeOrigin(ctx)).toBe(false);
+  });
+
+  it('should reject requests with sec-fetch-site: cross-site even if origin is absent', () => {
+    const ctx = createOriginContext(undefined, 'https://northstar.example/api/admin/content', 'cross-site');
+    expect(isSafeOrigin(ctx)).toBe(false);
+  });
+
+  it('should allow requests with sec-fetch-site: same-origin', () => {
+    const ctx = createOriginContext(undefined, 'https://northstar.example/api/admin/content', 'same-origin');
+    expect(isSafeOrigin(ctx)).toBe(true);
   });
 });

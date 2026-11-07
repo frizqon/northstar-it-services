@@ -51,12 +51,18 @@ export function isLocalDev(c: Context<WorkerEnv>): boolean {
 
 /**
  * Validates whether the request origin matches the request host (CSRF protection for state-modifying calls).
+ * Also inspects the Sec-Fetch-Site metadata header for modern browser defense-in-depth.
  */
 export function isSafeOrigin(c: Context<WorkerEnv>): boolean {
+  const secFetchSite = c.req.header('sec-fetch-site');
+  if (secFetchSite === 'cross-site') {
+    return false;
+  }
+
   const origin = c.req.header('Origin');
   if (!origin) {
-    // Non-browser or same-origin direct request without Origin header (e.g. some internal GET/same-origin fetches)
-    return true;
+    // Non-browser or direct navigation without Origin header
+    return secFetchSite ? secFetchSite === 'same-origin' || secFetchSite === 'none' : true;
   }
 
   try {

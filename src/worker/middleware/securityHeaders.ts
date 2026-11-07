@@ -10,6 +10,11 @@ export const securityHeaders: MiddlewareHandler<WorkerEnv> = async (c, next) => 
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
+  // Enforce HTTPS in production via Strict-Transport-Security (HSTS)
+  if (c.env?.ENVIRONMENT === 'production') {
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+
   // Content Security Policy
   const csp = [
     "default-src 'self'",

@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://northstar-it-services.frizqon.workers.dev/sitemap.xml
+Sitemap: https://northstar-it-services.frizqon.workers.dev/sitemap-index.xml
