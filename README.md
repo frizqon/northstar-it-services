@@ -1,78 +1,215 @@
 # Northstar IT Services — Astro + Preact + Workers + Neon
 
-English-language IT services landing page with a lightweight Preact CMS SPA.
+Modern IT services landing page with an integrated Preact Content Studio (CMS), powered by Cloudflare Workers and Neon Serverless Postgres + Object Storage.
 
-## Stack
-- Astro static site with server-rendered Preact islands
-- Preact + Vite-powered Astro integration at `/admin/`
-- Hono API routes on Cloudflare Workers
-- Neon Postgres for CMS content
-- Neon Object Storage for project images; uploads use short-lived signed POST forms
-- Cloudflare Access JWT validation for CMS writes and upload URL generation
+---
 
-## Local preview
+## Architecture & Stack
 
-Requires **Node.js 24+** (Node.js 26 LTS is also suitable).
+- **Frontend**: Astro static site with server-rendered Preact islands.
+- **CMS Studio**: Preact single-page application at `/admin/`.
+- **Backend / API**: Hono framework running on Cloudflare Workers (`/api/*`).
+- **Database**: Neon Serverless Postgres (`site_content` singleton JSONB schema).
+- **Media Storage**: Neon Object Storage (S3-compatible) with browser-direct presigned POST forms.
+- **Authentication**: Built-in signed JWT session cookies (`ADMIN_USERNAME` & `ADMIN_PASSWORD`) with optional Cloudflare Access Zero Trust JWT validation.
+
+---
+
+## CLI Prerequisites
+
+Ensure you have the required CLI tools installed and authenticated on your machine:
+
+| Tool | Minimum Version | Installation / Auth |
+| :--- | :--- | :--- |
+| **Node.js** | `>= 24.0.0` | [nodejs.org](https://nodejs.org/) |
+| **Wrangler** | `>= 4.0.0` | Included in devDependencies (`npx wrangler login`) |
+| **Neon CLI (`neonctl`)** | Latest | `npm install -g neonctl` (`neonctl auth`) |
+| **GitHub CLI (`gh`)** | Latest | [cli.github.com](https://cli.github.com/) (`gh auth login`) |
+
+---
+
+## Complete CLI Setup & Deployment Guide
+
+Follow these sequential CLI steps to configure the entire stack from scratch.
+
+### 1. Clone & Install Dependencies
 
 ```sh
+git clone git@github.com:rizqonfah/northstar-it-services.git
+cd northstar-it-services
 npm install
+```
+
+---
+
+### 2. Provision Neon Postgres Database via CLI
+
+Authenticate with Neon and create a new project:
+
+```sh
+# 1. Login to Neon
+neonctl auth
+
+# 2. Create project
+neonctl projects create --name northstar-it-services --region-id aws-ap-southeast-1
+
+# 3. Retrieve the connection string
+neonctl connection-string --pooled
+```
+
+Apply the database schema directly via `neonctl` (or `psql`):
+
+```sh
+# Run schema migration using neonctl
+neonctl sql "CREATE TABLE IF NOT EXISTS site_content (id integer PRIMARY KEY CHECK (id = 1), content jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());"
+```
+
+---
+
+### 3. Setup Neon Object Storage via CLI / Dashboard
+
+1. Enable Object Storage on your project branch:
+   - S3 Endpoint format: `https://<BRANCH_ID>.storage.<REGION_HOST>`
+   - Region: `ap-southeast-1` (or your chosen Neon region)
+2. Create bucket `northstar-assets` with `public_read` permissions.
+3. Generate a branch credential scoped to `storage:write` to get:
+   - `AWS_ACCESS_KEY_ID` (Token ID)
+   - `AWS_SECRET_ACCESS_KEY` (S3 Secret Key)
+
+---
+
+### 4. Configure Local Environment (`.dev.vars`) via CLI
+
+Generate your local `.dev.vars` file using the command line:
+
+#### On Linux / macOS (Bash):
+```sh
+cat << 'EOF' > .dev.vars
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+AWS_ENDPOINT_URL_S3=https://YOUR-BRANCH.storage.c-2.ap-southeast-1.aws.neon.tech
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=YOUR_NEON_STORAGE_TOKEN_ID
+AWS_SECRET_ACCESS_KEY=YOUR_NEON_STORAGE_SECRET
+OBJECT_STORAGE_BUCKET=northstar-assets
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=YourSecurePassword123!
+ADMIN_JWT_SECRET=northstar-session-secret-key-prod-random-8201
+EOF
+```
+
+#### On Windows (PowerShell):
+```powershell
+@"
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+AWS_ENDPOINT_URL_S3=https://YOUR-BRANCH.storage.c-2.ap-southeast-1.aws.neon.tech
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=YOUR_NEON_STORAGE_TOKEN_ID
+AWS_SECRET_ACCESS_KEY=YOUR_NEON_STORAGE_SECRET
+OBJECT_STORAGE_BUCKET=northstar-assets
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=YourSecurePassword123!
+ADMIN_JWT_SECRET=northstar-session-secret-key-prod-random-8201
+"@ | Out-File -FilePath .dev.vars -Encoding utf8
+```
+
+---
+
+### 5. Run Local Development Server
+
+Start the local server backed by your local `.dev.vars`:
+
+```sh
 npm run dev
 ```
 
-The local Worker runs in demo mode (without Neon credentials) and saves CMS changes in the running Worker isolate. Demo changes are temporary and reset when the Worker restarts. To test against Neon locally, copy `.dev.vars.example` to `.dev.vars` and fill in the values. `DEV_AUTH_BYPASS` is enabled **only** by the local `dev`/`preview` scripts. Never set it in production.
+- **Website**: [http://127.0.0.1:8787/](http://127.0.0.1:8787/)
+- **Content Studio**: [http://127.0.0.1:8787/admin/](http://127.0.0.1:8787/admin/)
 
-Open `/` for the landing page and `/admin/` for the CMS. Image uploads require the Neon storage credentials and bucket CORS settings described below.
+---
 
-## Connect Neon Postgres
+### 6. Authenticate & Configure Cloudflare Worker Secrets via CLI
 
-1. Create a Neon project and run `schema.sql` against its database.
-2. Add the pooled Postgres connection string as a Worker secret:
-
-   ```sh
-   npx wrangler secret put DATABASE_URL
-   ```
-
-The first CMS save inserts the singleton content row. If no database is configured in production, write requests return an error rather than pretending to persist data.
-
-## Configure Neon Object Storage
-
-Neon Object Storage is currently marked **Beta** in its documentation. Create a bucket with public read access because the images are displayed on the public site; writes remain private and are done using short-lived signed upload forms.
-
-1. In Neon, enable Object Storage for the branch used by the site and create a bucket, e.g. `northstar-assets`, with access level `public_read`.
-2. Create a branch-scoped credential with the `storage:write` scope. Keep the secret key private. Obtain the endpoint and region from Neon’s Object Storage settings (or `neon env pull`).
-3. Configure bucket CORS to allow the production site origin and the local/preview origin used for testing. Allow `POST`, `GET`, and `HEAD` methods and the required headers (at minimum `Content-Type`; using `*` for allowed headers is simplest for this bucket).
-4. Save the following Worker secrets. Each command prompts for its value:
-
-   ```sh
-   npx wrangler secret put AWS_ENDPOINT_URL_S3
-   npx wrangler secret put AWS_REGION
-   npx wrangler secret put AWS_ACCESS_KEY_ID
-   npx wrangler secret put AWS_SECRET_ACCESS_KEY
-   npx wrangler secret put OBJECT_STORAGE_BUCKET
-   ```
-
-The CMS accepts JPEG, PNG, WebP, and AVIF up to 8 MB. The Worker signs a size-limited form that expires after five minutes; the browser never receives storage credentials. The public image URL is saved into the project content when you click **Save changes**.
-
-For local upload testing, put the same variables in `.dev.vars` (already excluded by `.gitignore`). Do not commit this file.
-
-## Protect the CMS in production
-
-1. Create a Cloudflare Access self-hosted application covering `/admin/*` and `/api/admin/*`; allow only the admin identity.
-2. Save the Access issuer hostname and application audience as Worker secrets:
-
-   ```sh
-   npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
-   npx wrangler secret put CF_ACCESS_AUD
-   ```
-
-   Set `CF_ACCESS_TEAM_DOMAIN` to the full Access issuer hostname (for example `northstar.cloudflareaccess.com`, without `https://`). The Worker validates the signed Access JWT before accepting content changes or creating upload signatures.
-3. Never set `DEV_AUTH_BYPASS` in production.
-
-## Build and deploy
+Log in to Cloudflare:
 
 ```sh
-npm run build
+npx wrangler login
+```
+
+Upload production secrets to Cloudflare Workers using non-interactive CLI piping:
+
+#### Bash / macOS / Linux:
+```sh
+echo "postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require" | npx wrangler secret put DATABASE_URL
+echo "https://YOUR-BRANCH.storage.c-2.ap-southeast-1.aws.neon.tech" | npx wrangler secret put AWS_ENDPOINT_URL_S3
+echo "ap-southeast-1" | npx wrangler secret put AWS_REGION
+echo "YOUR_NEON_STORAGE_TOKEN_ID" | npx wrangler secret put AWS_ACCESS_KEY_ID
+echo "YOUR_NEON_STORAGE_SECRET" | npx wrangler secret put AWS_SECRET_ACCESS_KEY
+echo "northstar-assets" | npx wrangler secret put OBJECT_STORAGE_BUCKET
+echo "admin" | npx wrangler secret put ADMIN_USERNAME
+echo "YourSecurePassword123!" | npx wrangler secret put ADMIN_PASSWORD
+echo "northstar-session-secret-key-prod-random-8201" | npx wrangler secret put ADMIN_JWT_SECRET
+```
+
+#### Windows PowerShell:
+```powershell
+"postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require" | npx wrangler secret put DATABASE_URL
+"https://YOUR-BRANCH.storage.c-2.ap-southeast-1.aws.neon.tech" | npx wrangler secret put AWS_ENDPOINT_URL_S3
+"ap-southeast-1" | npx wrangler secret put AWS_REGION
+"YOUR_NEON_STORAGE_TOKEN_ID" | npx wrangler secret put AWS_ACCESS_KEY_ID
+"YOUR_NEON_STORAGE_SECRET" | npx wrangler secret put AWS_SECRET_ACCESS_KEY
+"northstar-assets" | npx wrangler secret put OBJECT_STORAGE_BUCKET
+"admin" | npx wrangler secret put ADMIN_USERNAME
+"YourSecurePassword123!" | npx wrangler secret put ADMIN_PASSWORD
+"northstar-session-secret-key-prod-random-8201" | npx wrangler secret put ADMIN_JWT_SECRET
+```
+
+---
+
+### 7. Build & Deploy to Cloudflare Workers
+
+Build static assets with Astro and deploy the Worker + assets with Wrangler:
+
+```sh
 npm run deploy
 ```
 
-Static assets are served through the Workers Assets binding; `/api/*` routes run through Hono. The public HTML is generated from the English defaults for a fast, indexable baseline and refreshes from `/api/content` in the browser. For CMS-edited text to appear in the initial HTML/SEO metadata, connect publish to a site rebuild or move public page rendering to cached Worker SSR.
+Once deployment completes, your Worker URL will be displayed in the terminal:
+`https://northstar-it-services.<your-subdomain>.workers.dev`
+
+---
+
+### 8. GitHub CLI Management (`gh`)
+
+Manage and push repository changes:
+
+```sh
+# Check auth status
+gh auth status
+
+# Create private repository and push (if starting from scratch)
+gh repo create northstar-it-services --private --source=. --remote=origin --push
+
+# Push existing commits
+git add .
+git commit -m "docs: update setup instructions for CLI"
+git push origin main
+```
+
+---
+
+## Content Studio (`/admin/`) Access
+
+1. Open `/admin/` in your browser.
+2. Sign in using your `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+3. Edit content across **Overview**, **Hero**, **Services**, **Projects**, **About**, and **Contact & SEO**.
+4. Upload project images directly (JPEG, PNG, WebP, AVIF up to 8 MB) via secure signed POST forms.
+5. Click **Save changes** to persist changes immediately to Neon Postgres.
+6. Click **Sign out** to invalidate the session cookie.
+
+---
+
+## Security Best Practices
+
+- **Never commit `.dev.vars`**: It is strictly ignored by `.gitignore`.
+- **Rotate Secrets**: Secrets can be updated anytime using `wrangler secret put <KEY>`.
+- **Cloudflare Access (Optional)**: For enterprise setups, you can add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` secrets to require Cloudflare Zero Trust authentication in addition to or instead of form login.
