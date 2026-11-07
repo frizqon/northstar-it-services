@@ -35,6 +35,6 @@ export const DEFAULT_CONTENT: SiteContent = {
     stat: '12+',
     statLabel: 'years solving real-world IT challenges'
   },
-  contact: { email: 'hello@northstar.example', location: 'Jakarta, Indonesia · Working across APAC', availability: 'Have a project in mind? Let’s make it happen.' },
+  contact: { email: 'hello@northstar.example', location: 'Jakarta, Indonesia · Working across APAC', availability: 'Have a project in mind? Let’s build something great together.' },
   seo: { title: 'Northstar IT Services — Technology that moves business forward', description: 'Cloud, software engineering, cybersecurity and IT support for ambitious businesses in Jakarta and across APAC.' }
 };
