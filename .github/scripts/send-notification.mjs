@@ -10,7 +10,7 @@ const actor = process.env.ACTOR || 'unknown';
 const repo = process.env.REPO || 'northstar-it-services';
 const runId = process.env.RUN_ID || '';
 const runUrl = `https://github.com/${repo}/actions/runs/${runId}`;
-const liveUrl = 'https://northstar-it-services.frizqon.workers.dev';
+const liveUrl = process.env.LIVE_URL || 'https://northstar-it-services.frizqon.workers.dev';
 
 const isSuccess = jobStatus.toLowerCase() === 'success';
 

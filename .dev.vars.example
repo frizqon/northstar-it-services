@@ -1,5 +1,6 @@
 # Copy this file to .dev.vars for local development, then replace the placeholders.
 # Never commit .dev.vars or share these values publicly.
+ENVIRONMENT=development
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
 AWS_ENDPOINT_URL_S3=https://YOUR-BRANCH.storage.c-REGION.aws.neon.tech
 AWS_REGION=ap-southeast-1
