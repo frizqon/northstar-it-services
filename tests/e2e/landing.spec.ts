@@ -38,6 +38,32 @@ test.describe('Public Landing Page E2E', () => {
     const footer = page.locator('.site-footer');
     await expect(footer).toBeVisible();
   });
+
+  test('should render and submit contact form successfully', async ({ page }) => {
+    await page.goto('/');
+
+    const contactSection = page.locator('#contact');
+    await expect(contactSection).toBeVisible();
+
+    const nameInput = page.locator('#contact-name');
+    const emailInput = page.locator('#contact-email');
+    const messageInput = page.locator('#contact-message');
+    const submitBtn = page.locator('.contact-submit-btn');
+
+    await expect(nameInput).toBeVisible();
+    await expect(emailInput).toBeVisible();
+    await expect(messageInput).toBeVisible();
+    await expect(submitBtn).toBeVisible();
+
+    await nameInput.fill('Budi Santoso');
+    await emailInput.fill('budi@example.com');
+    await messageInput.fill('Halo, saya ingin konsultasi mengenai migrasi cloud.');
+    await submitBtn.click();
+
+    const successState = page.locator('.contact-success-state');
+    await expect(successState).toBeVisible({ timeout: 5000 });
+    await expect(successState).toContainText(/Message sent successfully/i);
+  });
 });
 
 test.describe('Content Studio (Admin) E2E', () => {

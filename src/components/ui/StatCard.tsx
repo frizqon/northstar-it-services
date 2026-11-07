@@ -6,9 +6,10 @@ interface StatCardProps {
   caption: string;
   isLive?: boolean;
   href?: string;
+  onClick?: (e: JSX.TargetedMouseEvent<HTMLAnchorElement>) => void;
 }
 
-export function StatCard({ label, value, caption, isLive, href }: StatCardProps): JSX.Element {
+export function StatCard({ label, value, caption, isLive, href, onClick }: StatCardProps): JSX.Element {
   const content = (
     <>
       <span>{label}</span>
@@ -22,7 +23,7 @@ export function StatCard({ label, value, caption, isLive, href }: StatCardProps)
 
   if (href) {
     return (
-      <a href={href} class={`stat-card ${isLive ? 'stat-live' : ''}`}>
+      <a href={href} class={`stat-card ${isLive ? 'stat-live' : ''}`} onClick={onClick}>
         {content}
       </a>
     );

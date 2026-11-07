@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
-import { DEFAULT_CONTENT, type SiteContent, type Service, type Project } from '../content/default';
+import { DEFAULT_CONTENT, type SiteContent } from '../content/default';
+import type { ContactMessage, ContactMessageStats, MessageStatus } from '../worker/types';
 import { ToastNotice } from './ui/ToastNotice';
 import { LoginView } from './admin/LoginView';
 import { AdminSidebar } from './admin/AdminSidebar';
 import { AdminHeader } from './admin/AdminHeader';
 import { StatsOverview } from './admin/StatsOverview';
+import { MessagesManager } from './admin/MessagesManager';
 import { HeroEditor } from './admin/editors/HeroEditor';
 import { ServicesEditor } from './admin/editors/ServicesEditor';
 import { ProjectsEditor } from './admin/editors/ProjectsEditor';
@@ -18,6 +20,16 @@ export default function AdminApp() {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
   const [activeTab, setActiveTab] = useState('Overview');
+
+  // Messages State
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [messagesStats, setMessagesStats] = useState<ContactMessageStats>({
+    total: 0,
+    unread: 0,
+    read: 0,
+    replied: 0
+  });
+  const [messagesLoading, setMessagesLoading] = useState(false);
 
   // Auth States
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -55,11 +67,32 @@ export default function AdminApp() {
       .finally(() => setLoading(false));
   };
 
+  const loadMessages = async () => {
+    setMessagesLoading(true);
+    try {
+      const res = await fetch('/api/admin/messages');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.messages)) {
+          setMessages(data.messages);
+        }
+        if (data.stats) {
+          setMessagesStats(data.stats);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load messages', err);
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
   useEffect(() => {
     checkAuth().then((isAuth) => {
       setAuthChecking(false);
       if (isAuth) {
         loadContent();
+        loadMessages();
       }
     });
   }, []);
@@ -104,6 +137,83 @@ export default function AdminApp() {
     } finally {
       setSaving(false);
       window.setTimeout(() => setNotice(''), 5000);
+    }
+  };
+
+  const handleUpdateMessageStatus = async (
+    id: number,
+    status: MessageStatus,
+    replyNotes?: string | null
+  ): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/admin/messages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, replyNotes })
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      if (data.ok && data.message) {
+        // Update local state and recount
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? (data.message as ContactMessage) : m))
+        );
+
+        // Recalculate stats
+        setMessagesStats((prev) => {
+          const updatedMessages = messages.map((m) =>
+            m.id === id ? (data.message as ContactMessage) : m
+          );
+          let unread = 0;
+          let read = 0;
+          let replied = 0;
+          for (const m of updatedMessages) {
+            if (m.status === 'unread') unread++;
+            else if (m.status === 'read') read++;
+            else if (m.status === 'replied') replied++;
+          }
+          return { total: updatedMessages.length, unread, read, replied };
+        });
+
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleDeleteMessage = async (id: number): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/admin/messages/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      setMessagesStats((prev) => {
+        const remaining = messages.filter((m) => m.id !== id);
+        let unread = 0;
+        let read = 0;
+        let replied = 0;
+        for (const m of remaining) {
+          if (m.status === 'unread') unread++;
+          else if (m.status === 'read') read++;
+          else if (m.status === 'replied') replied++;
+        }
+        return { total: remaining.length, unread, read, replied };
+      });
+
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -181,6 +291,7 @@ export default function AdminApp() {
           setAuthenticated(true);
           setCurrentUser(username);
           loadContent();
+          loadMessages();
         }}
       />
     );
@@ -195,10 +306,19 @@ export default function AdminApp() {
   // 3. Authenticated Admin Workspace
   return (
     <div class="admin-shell">
-      <AdminSidebar activeTab={activeTab} onSelectTab={handleSelectTab} />
+      <AdminSidebar
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        unreadCount={messagesStats.unread}
+      />
 
       <main class="admin-main">
-        <AdminHeader currentUser={currentUser} onLogout={handleLogout} />
+        <AdminHeader
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          unreadCount={messagesStats.unread}
+          onNavigateMessages={() => handleSelectTab('Messages', 'messages')}
+        />
 
         <div class="admin-content">
           <div class="admin-title-row">
@@ -222,9 +342,20 @@ export default function AdminApp() {
           <StatsOverview
             servicesCount={content.services.length}
             projectsCount={content.projects.length}
+            messagesStats={messagesStats}
+            onNavigateMessages={() => handleSelectTab('Messages', 'messages')}
           />
 
           {loading && <div class="loading-line">Loading your content…</div>}
+
+          <MessagesManager
+            messages={messages}
+            stats={messagesStats}
+            loading={messagesLoading}
+            onRefresh={loadMessages}
+            onUpdateStatus={handleUpdateMessageStatus}
+            onDeleteMessage={handleDeleteMessage}
+          />
 
           <HeroEditor
             brand={content.brand}

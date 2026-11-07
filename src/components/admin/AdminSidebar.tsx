@@ -3,6 +3,7 @@ import { StatusDot } from '../ui/StatusDot';
 
 export const ADMIN_NAV_ITEMS = [
   { name: 'Overview', icon: '◫', id: 'overview' },
+  { name: 'Messages', icon: '✉', id: 'messages' },
   { name: 'Hero', icon: '✳', id: 'hero' },
   { name: 'Services', icon: '◈', id: 'services' },
   { name: 'Projects', icon: '▧', id: 'projects' },
@@ -13,9 +14,10 @@ export const ADMIN_NAV_ITEMS = [
 interface AdminSidebarProps {
   activeTab: string;
   onSelectTab: (tabName: string, elementId: string) => void;
+  unreadCount?: number;
 }
 
-export function AdminSidebar({ activeTab, onSelectTab }: AdminSidebarProps): JSX.Element {
+export function AdminSidebar({ activeTab, onSelectTab, unreadCount = 0 }: AdminSidebarProps): JSX.Element {
   return (
     <aside class="admin-sidebar">
       <a class="admin-brand" href="/">
@@ -36,7 +38,12 @@ export function AdminSidebar({ activeTab, onSelectTab }: AdminSidebarProps): JSX
             onClick={() => onSelectTab(item.name, item.id)}
           >
             <span aria-hidden="true">{item.icon}</span>
-            {item.name}
+            <span class="nav-text">{item.name}</span>
+            {item.id === 'messages' && unreadCount > 0 && (
+              <span class="sidebar-unread-badge" title={`${unreadCount} unread message(s)`}>
+                {unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>

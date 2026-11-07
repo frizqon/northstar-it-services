@@ -21,3 +21,127 @@
 .login-footer a:hover{text-decoration:underline}
 .logout-button{background:transparent;border:1px solid #ccd5c8;color:#5a685b;padding:5px 10px;border-radius:3px;font-size:10px;cursor:pointer;margin-left:8px;font-weight:600}
 .logout-button:hover{background:#e2e8de;color:#18221a}
+
+/* Contact Section Form (Landing Page) */
+.contact-layout{display:grid;grid-template-columns:1fr 1.15fr;gap:48px;align-items:start;position:relative}
+.contact-copy{position:relative}
+.contact-direct{margin:28px 0 20px}
+.contact-form-container{position:relative;z-index:2}
+.contact-form-card{background:#131f1a;border:1px solid #ffffff1c;border-radius:6px;padding:32px 28px;box-shadow:0 24px 52px #00000059}
+.contact-form-header h3{font:700 20px Manrope,sans-serif;letter-spacing:-.03em;margin:0 0 8px;color:#ecf0e9}
+.contact-form-header p{font-size:12px;color:#92a295;margin:0 0 22px;line-height:1.6}
+.contact-form{display:flex;flex-direction:column;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group label{font:500 10px 'DM Mono',monospace;letter-spacing:.1em;color:#9cad9f;text-transform:uppercase}
+.form-group input,.form-group textarea{background:#0b1411;border:1px solid #23372b;border-radius:3px;padding:12px 13px;color:#ecf0e9;font-size:13px;outline:none;transition:border-color .15s ease,box-shadow .15s ease;width:100%}
+.form-group input:focus,.form-group textarea:focus{border-color:#baf478;box-shadow:0 0 0 2px #baf47829}
+.form-group textarea{resize:vertical;min-height:95px;line-height:1.55}
+.contact-submit-btn{width:100%;justify-content:center;margin-top:6px;padding:14px}
+.contact-submit-btn:disabled{opacity:.6;cursor:wait}
+.form-alert{padding:10px 14px;border-radius:4px;font-size:11px;margin-bottom:6px}
+.form-alert.error{background:#3b1c18;border:1px solid #732a22;color:#f9b6ae}
+.contact-success-state{text-align:center;padding:24px 12px}
+.contact-success-icon{width:48px;height:48px;border-radius:50%;background:#baf47826;color:#baf478;display:grid;place-items:center;font-size:22px;font-weight:700;margin:0 auto 16px}
+.contact-success-state h4{font:700 19px Manrope,sans-serif;margin:0 0 10px;color:#ecf0e9}
+.contact-success-state p{font-size:13px;color:#96a698;line-height:1.6;margin:0 0 22px;max-width:380px;margin-left:auto;margin-right:auto}
+
+/* Admin Messages & Inbox Manager */
+.messages-panel{scroll-margin-top:20px}
+.panel-actions{display:flex;align-items:center;gap:10px}
+.refresh-button{background:#edf3e9;border:1px solid #dbe4d5;color:#4f6b42;font-size:11px;font-weight:600;padding:6px 12px;border-radius:3px;cursor:pointer}
+.refresh-button:hover{background:#dfe9d8}
+.refresh-button:disabled{opacity:.5;cursor:wait}
+
+.messages-status-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.status-tab{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;background:#fff;border:1px solid #e1e7de;border-radius:4px;font-size:11px;cursor:pointer;color:#445145;transition:all .15s ease}
+.status-tab:hover{background:#f6faf3;border-color:#cedbc8}
+.status-tab.active{background:#17221d;color:#eaf1e9;border-color:#17221d}
+.tab-label{display:inline-flex;align-items:center;gap:5px;font-weight:500}
+.tab-badge{font:600 10px 'DM Mono',monospace;padding:2px 7px;border-radius:10px;background:#eef3ec;color:#4a5946}
+.status-tab.active .tab-badge{background:#2a3b30;color:#baf478}
+.tab-badge-unread{background:#fde9e4;color:#ba331c}
+.status-tab.active .tab-badge-unread{background:#541d13;color:#ff9e8f}
+.tab-badge-replied{background:#e7f7df;color:#357121}
+.status-tab.active .tab-badge-replied{background:#1f4514;color:#a8f484}
+.attention-dot{width:7px;height:7px;border-radius:50%;background:#e04f35;display:inline-block;box-shadow:0 0 6px #e04f3588}
+
+.empty-messages-state{padding:42px 20px;text-align:center;background:#fbfdfa;border:1px dashed #dce3d8;border-radius:4px;color:#7e8b7d;font-size:12px}
+.messages-table-wrap{overflow-x:auto;border:1px solid #e2e8df;border-radius:4px;background:#fff}
+.messages-table{width:100%;border-collapse:collapse;text-align:left;font-size:11px}
+.messages-table th{background:#f8faf6;color:#768374;font:600 9px 'DM Mono',monospace;letter-spacing:.09em;padding:11px 14px;border-bottom:1px solid #e2e8df;text-transform:uppercase}
+.messages-table td{padding:12px 14px;border-bottom:1px solid #edf1eb;vertical-align:middle}
+.message-row{cursor:pointer;transition:background .12s ease}
+.message-row:hover{background:#f7faf4}
+.message-row.is-unread{background:#f8fbf5;font-weight:500}
+.message-row.is-unread td{color:#131e15}
+
+.msg-badge{display:inline-flex;align-items:center;gap:5px;font:600 9px 'DM Mono',monospace;padding:3px 8px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase}
+.badge-unread{background:#fdece7;color:#ba331c;border:1px solid #f9cdbe}
+.badge-read{background:#edf2ec;color:#5a6858;border:1px solid #dbe2d9}
+.badge-replied{background:#e8f7df;color:#326a1d;border:1px solid #c5e6b3}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+.sender-info{display:flex;flex-direction:column;gap:2px}
+.sender-name{font-weight:600;color:#1e2920;font-size:12px}
+.sender-email{font:10px 'DM Mono',monospace;color:#6d7c6b}
+.msg-snippet{max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#505e4f}
+.msg-snippet p{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-date{font:10px 'DM Mono',monospace;color:#819080;white-space:nowrap}
+.row-actions{display:inline-flex;align-items:center;gap:6px}
+.action-link-btn{background:#eef5e9;border:1px solid #d4dfce;color:#3e5831;padding:5px 9px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer}
+.action-link-btn:hover{background:#17221d;color:#eaf1e9;border-color:#17221d}
+.action-delete-btn{background:transparent;border:0;color:#9b817c;cursor:pointer;padding:4px 6px;font-size:11px}
+.action-delete-btn:hover{color:#d33824}
+
+/* Sidebar & Header Notif */
+.sidebar-unread-badge{margin-left:auto;background:#e04f35;color:#fff;font:700 9px 'DM Mono',monospace;padding:2px 6px;border-radius:10px;line-height:1}
+.admin-topbar-right{display:flex;align-items:center}
+.header-notif-btn{display:inline-flex;align-items:center;gap:7px;background:#edf5e9;border:1px solid #d4dfce;border-radius:4px;padding:5px 11px;font-size:11px;color:#3d5930;cursor:pointer;margin-right:16px;font-weight:500}
+.header-notif-btn:hover{background:#e1edd9}
+.notif-pill{background:#e04f35;color:#fff;font:700 9px 'DM Mono',monospace;padding:2px 6px;border-radius:8px;line-height:1}
+
+/* Message Modal / Drawer */
+.msg-modal-backdrop{position:fixed;inset:0;background:#0c151475;backdrop-filter:blur(3px);display:grid;place-items:center;z-index:999;padding:20px}
+.msg-modal-card{background:#fff;border:1px solid #d7e0d3;border-radius:6px;width:min(680px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px #0000003b}
+.msg-modal-header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px 18px;border-bottom:1px solid #edf1ea}
+.msg-modal-header h3{margin:4px 0 2px;font:700 20px Manrope,sans-serif;color:#182319;letter-spacing:-.03em}
+.modal-sender-email{font:11px 'DM Mono',monospace;color:#547743;text-decoration:none}
+.modal-sender-email:hover{text-decoration:underline}
+.modal-close-btn{background:transparent;border:0;font-size:15px;color:#829080;cursor:pointer;padding:4px 8px}
+.modal-close-btn:hover{color:#182319}
+.msg-modal-body{padding:22px 24px 28px;display:flex;flex-direction:column;gap:18px}
+.modal-meta-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding-bottom:14px;border-bottom:1px solid #edf2eb}
+.meta-label{font:600 9px 'DM Mono',monospace;letter-spacing:.08em;color:#7e8b7c;text-transform:uppercase;display:block;margin-bottom:4px}
+.status-toggle-group{display:flex;align-items:center;gap:10px}
+.status-toggle-group .meta-label{margin-bottom:0}
+.status-button-pills{display:inline-flex;gap:4px}
+.status-pill{border:1px solid #d9e1d6;background:#fbfdfa;color:#556353;font-size:10px;font-weight:600;padding:4px 10px;border-radius:3px;cursor:pointer}
+.status-pill.active.unread{background:#fdeae4;color:#ba331c;border-color:#f8c8ba}
+.status-pill.active.read{background:#edf2ec;color:#354333;border-color:#cad4c6}
+.status-pill.active.replied{background:#e5f6dc;color:#2b6716;border-color:#bae0a9}
+.replied-notice-box{display:flex;align-items:flex-start;gap:10px;background:#eef8e9;border:1px solid #d3e9c8;padding:12px 14px;border-radius:4px;font-size:11px;color:#2c5b1b}
+.dot-replied{width:7px;height:7px;border-radius:50%;background:#388022;margin-top:4px}
+.replied-notes-text{margin:4px 0 0;font-size:11px;color:#4c6d40;line-height:1.5}
+.msg-full-content{display:flex;flex-direction:column;gap:4px}
+.msg-text-box{background:#f8faf6;border:1px solid #dfebd8;border-radius:4px;padding:16px;font-size:13px;line-height:1.7;color:#1e291f;white-space:pre-wrap}
+.reply-composer-section{background:#fbfdfa;border:1px solid #dfe5dc;border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.reply-caption{font-size:11px;color:#788676;margin:0 0 4px;line-height:1.5}
+.reply-textarea{width:100%;background:#fff;border:1px solid #d3dcce;border-radius:3px;padding:11px 12px;font-size:12px;line-height:1.5;color:#1f2a20;outline:none;resize:vertical;min-height:85px}
+.reply-textarea:focus{border-color:#8cae6c;box-shadow:0 0 0 2px #8cae6c26}
+.reply-action-buttons{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.reply-send-btn{padding:11px 16px;font-size:11px}
+
+@media(max-width:850px){
+  .contact-layout{grid-template-columns:1fr;gap:36px}
+  .contact-meta{margin-top:32px}
+  .msg-snippet{max-width:200px}
+}
+
+/* Read Timestamp & Meta Details */
+.status-col-wrapper{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.status-timestamp{font:9px 'DM Mono',monospace;color:#6d7f6c;line-height:1.2}
+.modal-meta-dates{display:flex;gap:24px;flex-wrap:wrap}
+.text-read-highlight{color:#40523e}
+.text-replied-highlight{color:#2e6c1a}
+.read-notice-box{display:flex;align-items:center;gap:10px;background:#f3f7f0;border:1px solid #dce8d6;padding:10px 14px;border-radius:4px;font-size:11px;color:#3d5934}
+.dot-read{width:7px;height:7px;border-radius:50%;background:#587d49}
