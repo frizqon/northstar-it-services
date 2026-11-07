@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+import type { JSX, TargetedEvent } from 'preact';
 import type { SiteContent } from '../../content/default';
 import { StatusDot } from '../ui/StatusDot';
 
@@ -17,7 +17,7 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
 
   const mailtoUrl = `mailto:${encodeURIComponent(contact.email)}`;
 
-  const handleSubmit = async (e: JSX.TargetedEvent<HTMLFormElement, Event>) => {
+  const handleSubmit = async (e: TargetedEvent<HTMLFormElement, Event>) => {
     e.preventDefault();
     setErrorMessage('');
 

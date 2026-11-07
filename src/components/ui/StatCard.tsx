@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { JSX, TargetedMouseEvent } from 'preact';
 
 interface StatCardProps {
   label: string;
@@ -6,7 +6,7 @@ interface StatCardProps {
   caption: string;
   isLive?: boolean;
   href?: string;
-  onClick?: (e: JSX.TargetedMouseEvent<HTMLAnchorElement>) => void;
+  onClick?: (e: TargetedMouseEvent<HTMLAnchorElement>) => void;
 }
 
 export function StatCard({ label, value, caption, isLive, href, onClick }: StatCardProps): JSX.Element {

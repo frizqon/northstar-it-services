@@ -24,7 +24,7 @@
     "astro": "^7.4.7",
     "hono": "^4.9.8",
     "jose": "^6.1.0",
-    "preact": "^10.27.2"
+    "preact": "^11.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

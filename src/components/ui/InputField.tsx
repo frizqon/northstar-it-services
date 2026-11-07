@@ -7,7 +7,7 @@ interface InputFieldProps {
   multiline?: boolean;
   rows?: number;
   placeholder?: string;
-  type?: string;
+  type?: 'text' | 'email';
   required?: boolean;
   autoComplete?: string;
   autoFocus?: boolean;
@@ -39,9 +39,19 @@ export function InputField({
           autoFocus={autoFocus}
           onInput={(e) => onValueChange((e.target as HTMLTextAreaElement).value)}
         />
+      ) : type === 'email' ? (
+        <input
+          type="email"
+          value={value}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
+          autoFocus={autoFocus}
+          onInput={(e) => onValueChange((e.target as HTMLInputElement).value)}
+        />
       ) : (
         <input
-          type={type}
+          type="text"
           value={value}
           placeholder={placeholder}
           required={required}
