@@ -3,12 +3,14 @@ import { bodyLimit } from 'hono/body-limit';
 import type { WorkerEnv } from './types';
 import { requestContext } from './middleware/requestContext';
 import { securityHeaders } from './middleware/securityHeaders';
+import { logError } from './lib/log';
 import { healthRouter } from './routes/health';
 import { configRouter } from './routes/config';
 import { authRouter } from './routes/auth';
 import { contentRouter } from './routes/content';
 import { mediaRouter } from './routes/media';
 import { contactRouter } from './routes/contact';
+import { purgeExpiredContactMessages } from './lib/db';
 
 const app = new Hono<WorkerEnv>();
 
@@ -29,15 +31,11 @@ app.use(
 
 // Centralized error handling to prevent sensitive stack trace leaks in production
 app.onError((err, c) => {
-  console.error(
-    JSON.stringify({
-      event: 'unhandled_error',
-      requestId: c.get('requestId'),
-      method: c.req.method,
-      path: c.req.path,
-      error: err instanceof Error ? err.message : String(err)
-    })
-  );
+  logError('unhandled_error', err, {
+    requestId: c.get('requestId'),
+    method: c.req.method,
+    path: c.req.path
+  });
   return c.json(
     {
       error: 'An internal server error occurred',
@@ -63,4 +61,19 @@ app.notFound((c) => {
   return c.env.ASSETS.fetch(c.req.raw);
 });
 
-export default app;
+export { app };
+
+export default {
+  fetch: app.fetch.bind(app),
+  async scheduled(_controller: unknown, env: WorkerEnv['Bindings']): Promise<void> {
+    try {
+      const deleted = await purgeExpiredContactMessages(
+        env,
+        env.ENVIRONMENT === 'development'
+      );
+      console.log(JSON.stringify({ event: 'contact_retention_completed', deleted }));
+    } catch (error) {
+      logError('contact_retention_failed', error);
+    }
+  }
+};

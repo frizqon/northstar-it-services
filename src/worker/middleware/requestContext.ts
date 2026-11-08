@@ -27,18 +27,23 @@ export const requestContext: MiddlewareHandler<WorkerEnv> = async (c, next) => {
   c.header('X-Request-Id', requestId);
 
   const startedAt = Date.now();
-  await next();
+  let status = 500;
 
-  if (c.req.path.startsWith('/api/')) {
-    console.log(
-      JSON.stringify({
-        event: 'api_request',
-        requestId,
-        method: c.req.method,
-        path: c.req.path,
-        status: c.res.status,
-        durationMs: Date.now() - startedAt
-      })
-    );
+  try {
+    await next();
+    status = c.res.status;
+  } finally {
+    if (c.req.path.startsWith('/api/')) {
+      console.log(
+        JSON.stringify({
+          event: 'api_request',
+          requestId,
+          method: c.req.method,
+          path: c.req.path,
+          status,
+          durationMs: Date.now() - startedAt
+        })
+      );
+    }
   }
 };

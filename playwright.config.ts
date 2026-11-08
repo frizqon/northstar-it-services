@@ -21,13 +21,21 @@ export default defineConfig({
     command:
       `npm run build && npx wrangler dev --ip 127.0.0.1 --port 8787 --var ENVIRONMENT:development --var DATABASE_URL: --var DEV_AUTH_BYPASS:true --var ADMIN_USERNAME:admin --var ADMIN_PASSWORD:${e2eAdminPassword} --var ADMIN_JWT_SECRET:${e2eJwtSecret}`,
     url: 'http://127.0.0.1:8787/api/health',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30000
   },
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] }
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] }
     }
   ]
 });

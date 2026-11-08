@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import LandingPage from '../components/LandingPage';
+import LandingRoot from '../components/LandingRoot';
 import { DEFAULT_CONTENT, type SiteContent } from '../content/default';
 import { getSiteContent } from '../worker/lib/db';
 import type { WorkerEnv } from '../worker/types';
@@ -29,5 +29,5 @@ const { seo } = content;
   description={seo.description}
   themeColor="#0c1514"
 >
-  <LandingPage initialContent={content} client:load />
+  <LandingRoot initialContent={content} client:load />
 </BaseLayout>

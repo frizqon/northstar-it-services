@@ -4,13 +4,16 @@ import { verifyAdmin } from '../middleware/auth';
 import { isLocalDev, isSafeOrigin } from '../lib/security';
 import { verifyTurnstile } from '../lib/turnstile';
 import { contactRateLimiter } from '../middleware/rateLimit';
+import { logError } from '../lib/log';
 import {
   validateContactInput,
   saveContactMessage,
   getContactMessages,
   getContactMessageStats,
   updateContactMessageStatus,
-  deleteContactMessage
+  deleteContactMessage,
+  DEFAULT_MESSAGE_PAGE_SIZE,
+  MAX_MESSAGE_PAGE_SIZE
 } from '../lib/db';
 
 export const contactRouter = new Hono<WorkerEnv>();
@@ -80,7 +83,7 @@ contactRouter.post('/contact', contactRateLimiter, async (c) => {
       201
     );
   } catch (error) {
-    console.error('Failed to save contact message:', error);
+    logError('contact_save_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not submit your message. Please try again later.' }, 500);
   }
 });
@@ -98,15 +101,35 @@ contactRouter.get('/admin/messages', verifyAdmin, async (c) => {
   const validStatuses: (MessageStatus | 'all')[] = ['all', 'unread', 'read', 'replied'];
   const filterStatus = statusParam && validStatuses.includes(statusParam) ? statusParam : 'all';
 
+  const requestedLimit = Number(c.req.query('limit') ?? DEFAULT_MESSAGE_PAGE_SIZE);
+  const requestedOffset = Number(c.req.query('offset') ?? 0);
+  const limit =
+    Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, MAX_MESSAGE_PAGE_SIZE)
+      : DEFAULT_MESSAGE_PAGE_SIZE;
+  const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
+
   try {
     const [messages, stats] = await Promise.all([
-      getContactMessages(c.env, isLocal, filterStatus),
+      getContactMessages(c.env, isLocal, filterStatus, limit, offset),
       getContactMessageStats(c.env, isLocal)
     ]);
 
-    return c.json({ ok: true, messages, stats });
+    const filteredTotal = filterStatus === 'all' ? stats.total : stats[filterStatus];
+
+    return c.json({
+      ok: true,
+      messages,
+      stats,
+      pagination: {
+        limit,
+        offset,
+        total: filteredTotal,
+        hasMore: offset + messages.length < filteredTotal
+      }
+    });
   } catch (error) {
-    console.error('Failed to fetch contact messages:', error);
+    logError('contact_messages_read_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not retrieve messages' }, 500);
   }
 });
@@ -171,7 +194,7 @@ contactRouter.put('/admin/messages/:id', verifyAdmin, async (c) => {
 
     return c.json({ ok: true, message: updated });
   } catch (error) {
-    console.error('Failed to update message:', error);
+    logError('contact_message_update_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not update message' }, 500);
   }
 });
@@ -201,7 +224,7 @@ contactRouter.delete('/admin/messages/:id', verifyAdmin, async (c) => {
     }
     return c.json({ ok: true });
   } catch (error) {
-    console.error('Failed to delete message:', error);
+    logError('contact_message_delete_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not delete message' }, 500);
   }
 });

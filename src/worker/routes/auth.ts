@@ -10,6 +10,7 @@ import {
   ADMIN_SESSION_TTL_SECONDS,
   getAdminSessionCookieName,
   isLocalDev,
+  isSafeOrigin,
   timingSafeEqual
 } from '../lib/security';
 
@@ -24,6 +25,10 @@ authRouter.get('/me', async (c) => {
 });
 
 authRouter.post('/login', loginRateLimiter, async (c) => {
+  if (!isSafeOrigin(c)) {
+    return c.json({ error: 'Cross-origin request rejected' }, 403);
+  }
+
   let body: { username?: string; password?: string };
   try {
     body = await c.req.json();
@@ -79,7 +84,12 @@ authRouter.post('/login', loginRateLimiter, async (c) => {
 });
 
 authRouter.post('/logout', (c) => {
-  // Delete both names so sessions survive the migration to __Host- cookies.
+  if (!isSafeOrigin(c)) {
+    return c.json({ error: 'Cross-origin request rejected' }, 403);
+  }
+
+  // Clear both names. The legacy cookie is no longer accepted for auth, but
+  // deleting it removes stale browser state after the migration.
   const isSecure = c.env.ENVIRONMENT === 'production';
   const cookieOptions = {
     path: '/',

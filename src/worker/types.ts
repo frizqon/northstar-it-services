@@ -20,6 +20,9 @@ export type WorkerEnv = {
     AWS_ACCESS_KEY_ID?: string;
     AWS_SECRET_ACCESS_KEY?: string;
     OBJECT_STORAGE_BUCKET?: string;
+    LOGIN_RATE_LIMITER?: {
+      limit(options: { key: string }): Promise<{ success: boolean }>;
+    };
   };
   Variables: {
     adminUser?: string;

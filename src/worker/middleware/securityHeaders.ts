@@ -1,9 +1,7 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import type { WorkerEnv } from '../types';
 
-export const securityHeaders: MiddlewareHandler<WorkerEnv> = async (c, next) => {
-  await next();
-
+function applySecurityHeaders(c: Context<WorkerEnv>): void {
   // Basic security headers
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
@@ -22,12 +20,25 @@ export const securityHeaders: MiddlewareHandler<WorkerEnv> = async (c, next) => 
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+    // Direct-to-object-storage uploads use a presigned URL, so connect-src
+    // must allow the configured S3-compatible endpoint. Keep the scheme broad
+    // rather than hard-coding a provider host.
     "connect-src 'self' https:",
     "frame-src https://challenges.cloudflare.com",
+    "object-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
   ].join('; ');
 
   c.header('Content-Security-Policy', csp);
+}
+
+export const securityHeaders: MiddlewareHandler<WorkerEnv> = async (c, next) => {
+  // Set headers before the handler runs so responses created by app.onError
+  // (which bypasses code after `await next()`) still carry them.
+  applySecurityHeaders(c);
+  await next();
 };

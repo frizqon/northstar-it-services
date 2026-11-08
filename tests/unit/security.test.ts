@@ -45,12 +45,20 @@ describe('Security Utility: isLocalDev', () => {
     expect(isLocalDev(ctx)).toBe(true);
   });
 
-  it('should fallback to checking loopback IP if ENVIRONMENT is unset', () => {
+  it('should fail closed when ENVIRONMENT is unset, even for loopback hosts', () => {
     const ctx = createMockContext({}, 'http://127.0.0.1:8787/api/test');
-    expect(isLocalDev(ctx)).toBe(true);
+    expect(isLocalDev(ctx)).toBe(false);
 
-    const ctxRemote = createMockContext({}, 'https://northstar-it-services.workers.dev/api/test');
-    expect(isLocalDev(ctxRemote)).toBe(false);
+    const ctxLocalhost = createMockContext({}, 'http://localhost/api/test');
+    expect(isLocalDev(ctxLocalhost)).toBe(false);
+  });
+
+  it('should fail closed when only DEV_AUTH_BYPASS is set', () => {
+    const ctx = createMockContext(
+      { DEV_AUTH_BYPASS: 'true' },
+      'https://northstar-it-services.workers.dev/api/test'
+    );
+    expect(isLocalDev(ctx)).toBe(false);
   });
 });
 
@@ -85,6 +93,16 @@ describe('Security Utility: isSafeOrigin', () => {
 
   it('should reject requests where Origin host differs from request host (CSRF protection)', () => {
     const ctx = createOriginContext('https://malicious-attacker.com');
+    expect(isSafeOrigin(ctx)).toBe(false);
+  });
+
+  it('should reject a different scheme on the same host', () => {
+    const ctx = createOriginContext('http://northstar.example');
+    expect(isSafeOrigin(ctx)).toBe(false);
+  });
+
+  it('should reject a different port on the same host', () => {
+    const ctx = createOriginContext('https://northstar.example:8443');
     expect(isSafeOrigin(ctx)).toBe(false);
   });
 

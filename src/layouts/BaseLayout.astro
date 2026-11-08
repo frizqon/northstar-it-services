@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { serializeJsonLd } from '../utils/jsonld';
 
 interface Props {
   title: string;
@@ -55,6 +56,8 @@ const schemaData = isPublicPage
       ]
     }
   : null;
+
+const schemaJson = schemaData ? serializeJsonLd(schemaData) : null;
 ---
 
 <!doctype html>
@@ -89,8 +92,8 @@ const schemaData = isPublicPage
 
     <title>{title}</title>
 
-    {schemaData && (
-      <script type="application/ld+json" set:html={JSON.stringify(schemaData)} />
+    {schemaJson && (
+      <script type="application/ld+json" set:html={schemaJson} />
     )}
 
     <!-- Anti-flicker Theme Initializer -->

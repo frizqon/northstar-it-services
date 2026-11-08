@@ -70,7 +70,7 @@ export function ProjectsEditor({
             />
 
             <label class="field">
-              <span>Project image · JPEG, PNG, WebP or AVIF · max 8 MB</span>
+              <span>Project image · JPEG, PNG, WebP or AVIF · max 8 MB · large images are resized automatically</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/avif"

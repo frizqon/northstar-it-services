@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it, expect } from 'vitest';
-import app from '../../src/worker/index';
+import { app } from '../../src/worker/index';
 import type { WorkerEnv } from '../../src/worker/types';
 import { DEFAULT_CONTENT } from '../../src/content/default';
 import { resetInMemoryStore } from '../../src/worker/lib/db';
@@ -164,6 +164,75 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
     expect(setCookie).toContain('Max-Age=43200');
   });
 
+  it('POST /api/admin/login should reject a cross-origin request', async () => {
+    const res = await app.request(
+      'https://northstar.example/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.104',
+          Origin: 'https://evil.example'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+
+    expect(res.status).toBe(403);
+  });
+
+  it('should not accept the legacy admin_session cookie in production', async () => {
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.105'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+    const legacyCookie = (loginRes.headers.get('Set-Cookie') || '').split(';')[0];
+    expect(legacyCookie).toContain('admin_session=');
+
+    const prodEnv: WorkerEnv['Bindings'] = { ...mockEnv, ENVIRONMENT: 'production' };
+    const res = await app.request(
+      'https://northstar.example/api/admin/me',
+      { headers: { Cookie: legacyCookie } },
+      prodEnv
+    );
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/admin/login should reject requests denied by the global rate limiter', async () => {
+    const env: WorkerEnv['Bindings'] = {
+      ...mockEnv,
+      LOGIN_RATE_LIMITER: {
+        limit: async () => ({ success: false })
+      }
+    };
+
+    const res = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.106'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      env
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('60');
+  });
+
   it('POST /api/admin/login should trigger 429 Too Many Requests after 5 consecutive failures', async () => {
     const ip = '192.168.1.99';
 
@@ -259,6 +328,95 @@ describe('Worker Integration: Content Mutation & DoS Protection', () => {
       mockEnv
     );
     expect(notModifiedRes.status).toBe(304);
+  });
+
+  it('GET /api/admin/content should reject unauthenticated requests and use no-store', async () => {
+    const unauthenticated = await app.request('/api/admin/content', {}, mockEnv);
+    expect(unauthenticated.status).toBe(401);
+
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.201'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+    const sessionToken = (loginRes.headers.get('Set-Cookie') || '').split(';')[0];
+
+    const res = await app.request(
+      'https://northstar.example/api/admin/content',
+      { headers: { Cookie: sessionToken } },
+      mockEnv
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    const data = await res.json();
+    expect(data.content.brand).toBe('NORTHSTAR');
+    expect(data.updatedAt).toBeNull();
+  });
+
+  it('PUT /api/admin/content should return 409 for a stale revision', async () => {
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.202'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+    const sessionToken = (loginRes.headers.get('Set-Cookie') || '').split(';')[0];
+
+    const headers = {
+      'Content-Type': 'application/json',
+      Origin: 'https://northstar.example',
+      Cookie: sessionToken
+    };
+
+    const firstSave = await app.request(
+      'https://northstar.example/api/admin/content',
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ content: DEFAULT_CONTENT, updatedAt: null })
+      },
+      mockEnv
+    );
+    expect(firstSave.status).toBe(200);
+    const firstData = await firstSave.json();
+    expect(typeof firstData.updatedAt).toBe('string');
+
+    const staleSave = await app.request(
+      'https://northstar.example/api/admin/content',
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ content: DEFAULT_CONTENT, updatedAt: null })
+      },
+      mockEnv
+    );
+    expect(staleSave.status).toBe(409);
+    expect((await staleSave.json()).conflict).toBe(true);
+
+    const freshSave = await app.request(
+      'https://northstar.example/api/admin/content',
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ content: DEFAULT_CONTENT, updatedAt: firstData.updatedAt })
+      },
+      mockEnv
+    );
+    expect(freshSave.status).toBe(200);
   });
 
   it('POST /api/* should reject payloads exceeding 1 MB with 413 Payload Too Large', async () => {
@@ -445,6 +603,89 @@ describe('Worker Integration: Contact Messages Feature', () => {
     expect(rateLimitedRes.status).toBe(429);
     const data = await rateLimitedRes.json();
     expect(data.error).toContain('Too many messages sent');
+  });
+
+  it('POST /api/contact should not count invalid submissions against the rate limit', async () => {
+    const ip = '10.0.0.60';
+
+    for (let i = 0; i < 6; i++) {
+      const invalid = await app.request(
+        '/api/contact',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+          body: JSON.stringify({ name: 'A', email: 'invalid', message: '' })
+        },
+        mockEnv
+      );
+      expect(invalid.status).toBe(400);
+    }
+
+    const valid = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+        body: JSON.stringify({
+          name: 'Valid User',
+          email: 'valid@example.com',
+          message: 'This valid submission should not be blocked.'
+        })
+      },
+      mockEnv
+    );
+    expect(valid.status).toBe(201);
+  });
+
+  it('GET /api/admin/messages should paginate with limit and offset', async () => {
+    const submitIp = '10.0.0.50';
+    for (let i = 0; i < 3; i++) {
+      const res = await app.request(
+        '/api/contact',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': submitIp },
+          body: JSON.stringify({
+            name: `Paged User ${i}`,
+            email: `paged${i}@example.com`,
+            message: 'Pagination test message'
+          })
+        },
+        mockEnv
+      );
+      expect(res.status).toBe(201);
+    }
+
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.168.1.206' },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+    const sessionToken = (loginRes.headers.get('Set-Cookie') || '').split(';')[0];
+
+    const firstPage = await app.request(
+      'https://northstar.example/api/admin/messages?limit=1&offset=0',
+      { headers: { Cookie: sessionToken } },
+      mockEnv
+    );
+    expect(firstPage.status).toBe(200);
+    const firstData = await firstPage.json();
+    expect(firstData.messages).toHaveLength(1);
+    expect(firstData.pagination).toMatchObject({ limit: 1, offset: 0, total: 3, hasMore: true });
+    expect(firstData.stats.total).toBe(3);
+
+    const lastPage = await app.request(
+      'https://northstar.example/api/admin/messages?limit=1&offset=2',
+      { headers: { Cookie: sessionToken } },
+      mockEnv
+    );
+    const lastData = await lastPage.json();
+    expect(lastData.messages).toHaveLength(1);
+    expect(lastData.pagination.hasMore).toBe(false);
   });
 
   it('GET /api/admin/messages should reject unauthenticated requests with 401', async () => {

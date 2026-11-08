@@ -45,20 +45,24 @@ The Worker triggers a `cms-content-updated` repository dispatch after each CMS s
 ## 3. Turnstile
 
 1. In the Cloudflare dashboard, open **Turnstile** and add a widget.
-2. Add the production hostname. The current hostname is `northstar-it-services.frizqon.workers.dev`.
+2. Add the production hostname. The current hostname is `it.erfah.my.id`.
 3. Copy the site key and secret key into the Worker secrets above.
 4. Open the public site, submit the contact form, and confirm the challenge appears and the message is stored.
 5. Remove the keys to disable the challenge without redeploying.
 
-Turnstile does not require a custom domain. It works on `workers.dev`.
+Turnstile does not require a custom domain. It also works on `workers.dev`.
 
 ---
 
-## 4. WAF rate limiting and Cloudflare Access
+## 4. Rate limiting and Cloudflare Access
 
-The current production hostname is `*.workers.dev`. Zone-level WAF rate limiting rules and Cloudflare Access policies require a custom domain attached to a Cloudflare zone you control. Add a custom domain to the Worker before configuring these controls.
+Production runs on `it.erfah.my.id`. The Worker includes a Cloudflare Rate Limiting binding for admin login:
 
-Recommended WAF rate limiting rules once a custom domain is active:
+- Binding: `LOGIN_RATE_LIMITER`
+- Limit: 10 requests per 60 seconds per IP, per Cloudflare location
+- The in-isolate limiter still enforces 5 failed attempts per 15 minutes and is the fallback when the binding is unavailable.
+
+The binding is enforced across isolates in each location but is not a strict global counter. For stricter zone-wide enforcement, add WAF rate limiting rules:
 
 | Rule | Expression | Threshold | Action |
 | --- | --- | --- | --- |
@@ -66,11 +70,9 @@ Recommended WAF rate limiting rules once a custom domain is active:
 | Admin login | `http.request.uri.path eq "/api/admin/login" and http.request.method eq "POST"` | 5 requests / 15 minutes per IP | Block |
 | Admin API | `starts_with(http.request.uri.path, "/api/admin/")` | 60 requests / minute per IP | Managed Challenge |
 
-The Worker also keeps an in-isolate limiter as a fallback. WAF rules provide global enforcement across isolates.
-
 Recommended Cloudflare Access policy:
 
-- Application: the custom domain paths `/admin/*` and `/api/admin/*`.
+- Application: `it.erfah.my.id` paths `/admin/*` and `/api/admin/*`.
 - Allow: your email address or identity provider group.
 - Session duration: 12 hours or less.
 - Require MFA at the identity provider.
@@ -163,3 +165,26 @@ To inspect or change the rule:
 4. Keep **Require branches to be up to date before merging** enabled.
 
 The deploy workflow remains the final gate: it reruns `typecheck`, `test`, and `build` on `main` before deploying. A failing test prevents deployment and sends a deploy failure notification.
+
+---
+
+## 9. Contact message retention
+
+`contact_messages` contains personal data (name, email, free-form message). The Worker enforces the retention window automatically:
+
+- Replied messages are deleted 6 months after `replied_at`.
+- Unread and read messages are deleted 12 months after `created_at`.
+- The scheduled handler runs daily at 03:00 UTC (`[triggers] crons = ["0 3 * * *"]` in `wrangler.toml`) and deletes in batches of 1,000, up to 10 batches per run.
+- Logs emit `contact_retention_completed` with the deleted count, or `contact_retention_failed` on error.
+
+To review what will be removed before a run, execute this against a Neon branch:
+
+```sql
+SELECT id, created_at, status, replied_at
+FROM public.contact_messages
+WHERE (status = 'replied' AND replied_at < now() - interval '6 months')
+   OR (status <> 'replied' AND created_at < now() - interval '12 months')
+ORDER BY created_at;
+```
+
+Export an encrypted backup first if the data may be needed for legal or accounting reasons. To test the handler locally, run `wrangler dev --test-scheduled` and call `curl "http://127.0.0.1:8787/cdn-cgi/local/scheduled"`.

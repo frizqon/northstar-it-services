@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import type { WorkerEnv } from '../types';
+import { logError } from '../lib/log';
 
 interface AttemptRecord {
   count: number;
@@ -16,8 +17,9 @@ const contactAttempts = new Map<string, { count: number; firstAttemptAt: number 
 const MAX_CONTACT_ATTEMPTS = 5;
 const CONTACT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
-// Per-isolate safety valve. For global rate limiting across all Cloudflare
-// isolates, configure a Cloudflare Rate Limiting rule or a Durable Object.
+// Per-isolate failure tracking. The LOGIN_RATE_LIMITER binding enforces the
+// coarse limit across isolates in each Cloudflare location; use a WAF rule for
+// strict account-wide enforcement.
 const MAX_TRACKED_ENTRIES = 5000;
 
 function pruneExpiredEntries<T extends { firstAttemptAt: number }>(
@@ -74,6 +76,25 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
     );
   }
 
+  // Cloudflare's Rate Limiting binding enforces the limit across isolates in
+  // each Cloudflare location. It counts every login request, so the local
+  // failure-only limiter above remains the precise 5-failed-attempts gate.
+  if (c.env.LOGIN_RATE_LIMITER) {
+    try {
+      const globalLimit = await c.env.LOGIN_RATE_LIMITER.limit({ key: `login:${ip}` });
+      if (!globalLimit.success) {
+        c.header('Retry-After', '60');
+        return c.json(
+          { error: 'Too many login attempts. Please try again in a minute.' },
+          429
+        );
+      }
+    } catch (error) {
+      // Keep the local limiter active if the platform binding is unavailable.
+      logError('login_rate_limit_binding_failed', error);
+    }
+  }
+
   await next();
 
   // If the request was a login attempt that failed (HTTP 401)
@@ -116,7 +137,7 @@ export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) 
   if (record) {
     if (now - record.firstAttemptAt > CONTACT_WINDOW_MS) {
       // Window expired, start fresh
-      contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+      contactAttempts.delete(ip);
     } else if (record.count >= MAX_CONTACT_ATTEMPTS) {
       const remainingSeconds = Math.ceil((record.firstAttemptAt + CONTACT_WINDOW_MS - now) / 1000);
       c.header('Retry-After', remainingSeconds.toString());
@@ -126,12 +147,20 @@ export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) 
         },
         429
       );
-    } else {
-      record.count += 1;
     }
-  } else {
-    contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
   }
 
   await next();
+
+  // Only successful submissions consume quota. Invalid payloads and failed
+  // Turnstile checks are still bounded by body limits and the Turnstile check,
+  // but they do not lock a legitimate visitor out of the contact form.
+  if (c.res.status === 201) {
+    const current = contactAttempts.get(ip);
+    if (!current || now - current.firstAttemptAt > CONTACT_WINDOW_MS) {
+      contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+    } else {
+      current.count += 1;
+    }
+  }
 };

@@ -2,6 +2,7 @@ import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { WorkerEnv, PresignInput, ConfirmMediaInput } from '../types';
 import { detectImageType, expectedImageTypeForKey, isMediaKey } from './media';
+import { logError } from './log';
 
 export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
 
@@ -40,6 +41,21 @@ function createS3Client(config: ReturnType<typeof getStorageConfig>) {
   });
 }
 
+let cachedS3: { key: string; client: S3Client } | null = null;
+
+/**
+ * Reuses one S3 client per isolate while still invalidating it when the
+ * endpoint, region, access key, or bucket changes. Rotating the secret for the
+ * same access key requires a new isolate (or a redeploy), which is expected.
+ */
+function getS3Client(config: ReturnType<typeof getStorageConfig>): S3Client {
+  const key = [config.endpoint, config.region, config.accessKeyId, config.bucket].join('|');
+  if (!cachedS3 || cachedS3.key !== key) {
+    cachedS3 = { key, client: createS3Client(config) };
+  }
+  return cachedS3.client;
+}
+
 function buildPublicUrl(endpoint: string, bucket: string, key: string) {
   const normalizedEndpoint = endpoint.replace(/\/$/, '');
   const encodedKey = key.split('/').map(encodeURIComponent).join('/');
@@ -75,7 +91,7 @@ export async function createPresignedUpload(
 
   const key = `projects/${crypto.randomUUID()}-${sanitizedBase}${expectedExt}`;
 
-  const s3 = createS3Client(config);
+  const s3 = getS3Client(config);
 
   const post = await createPresignedPost(s3, {
     Bucket: config.bucket,
@@ -116,7 +132,7 @@ export async function confirmUploadedMedia(
   }
 
   const config = getStorageConfig(env);
-  const s3 = createS3Client(config);
+  const s3 = getS3Client(config);
 
   const object = await s3.send(
     new GetObjectCommand({
@@ -141,7 +157,7 @@ export async function confirmUploadedMedia(
   const detectedType = detectImageType(bytes);
   if (detectedType !== expectedType) {
     await s3.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key })).catch((error) => {
-      console.error('Delete invalid media failed', error);
+      logError('media_invalid_delete_failed', error, { key });
     });
     throw new RangeError('Uploaded file content does not match its image type');
   }

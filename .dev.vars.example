@@ -12,8 +12,8 @@ OBJECT_STORAGE_BUCKET=northstar-assets
 
 # Built-in Admin Auth credentials
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=YourSecurePassword123!
-ADMIN_JWT_SECRET=your-random-32-character-secret-key
+ADMIN_PASSWORD=<generate with: openssl rand -base64 24>
+ADMIN_JWT_SECRET=<generate with: openssl rand -hex 32>
 
 # Optional: Cloudflare Access JWT validation
 CF_ACCESS_TEAM_DOMAIN=YOUR_TEAM.cloudflareaccess.com

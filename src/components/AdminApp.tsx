@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { DEFAULT_CONTENT, type Service, type SiteContent } from '../content/default';
-import type { ContactMessage, MessageStatus } from '../worker/types';
+import { validateSiteContent } from '../content/validate';
+import { prepareImageForUpload } from '../utils/image';
+import type { ContactMessage, ContactMessageStats, MessageStatus } from '../worker/types';
 import { ToastNotice } from './ui/ToastNotice';
 import { LoginView } from './admin/LoginView';
 import { AdminSidebar } from './admin/AdminSidebar';
@@ -29,6 +31,7 @@ function normalizeContent(content: SiteContent): SiteContent {
 
 export default function AdminApp() {
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
+  const [contentUpdatedAt, setContentUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
@@ -38,18 +41,14 @@ export default function AdminApp() {
   // Messages State
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
-
-  const messagesStats = useMemo(() => {
-    let unread = 0;
-    let read = 0;
-    let replied = 0;
-    for (const message of messages) {
-      if (message.status === 'unread') unread++;
-      else if (message.status === 'read') read++;
-      else if (message.status === 'replied') replied++;
-    }
-    return { total: messages.length, unread, read, replied };
-  }, [messages]);
+  const [messagesStats, setMessagesStats] = useState<ContactMessageStats>({
+    total: 0,
+    unread: 0,
+    read: 0,
+    replied: 0
+  });
+  const [messageFilter, setMessageFilter] = useState<'all' | MessageStatus>('all');
+  const [messagesHasMore, setMessagesHasMore] = useState(false);
 
   const showNotice = (message: string, type: Notice['type'] = 'success') => {
     setNotice({ type, message });
@@ -78,29 +77,64 @@ export default function AdminApp() {
     return false;
   };
 
-  const loadContent = () => {
+  const loadContent = async () => {
     setLoading(true);
-    fetch('/api/content', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) setContent(normalizeContent(data as SiteContent));
-      })
-      .catch((err) => {
-        console.warn('Failed to load content', err);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const res = await fetch('/api/admin/content', { cache: 'no-store' });
+      if (res.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error('Could not load content');
+      }
+      const data = await res.json();
+      if (validateSiteContent(data?.content)) {
+        setContent(normalizeContent(data.content));
+        setContentUpdatedAt(typeof data.updatedAt === 'string' ? data.updatedAt : null);
+      } else {
+        console.warn('Received invalid content payload; keeping the current editor state');
+      }
+    } catch (err) {
+      console.warn('Failed to load content', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadMessages = async () => {
+  const loadMessages = async (
+    options: { reset?: boolean; filter?: 'all' | MessageStatus } = {}
+  ) => {
+    const filter = options.filter ?? messageFilter;
+    const reset = options.reset ?? false;
     setMessagesLoading(true);
     try {
-      const res = await fetch('/api/admin/messages');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.messages)) {
-          setMessages(data.messages);
-        }
+      const offset = reset ? 0 : messages.length;
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: String(offset)
+      });
+      if (filter !== 'all') {
+        params.set('status', filter);
       }
+
+      const res = await fetch(`/api/admin/messages?${params.toString()}`);
+      if (res.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
+      if (!res.ok) {
+        return;
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data.messages)) {
+        setMessages((prev) => (reset ? data.messages : [...prev, ...data.messages]));
+      }
+      if (data.stats) {
+        setMessagesStats(data.stats as ContactMessageStats);
+      }
+      setMessagesHasMore(Boolean(data.pagination?.hasMore));
     } catch (err) {
       console.warn('Failed to load messages', err);
     } finally {
@@ -108,12 +142,17 @@ export default function AdminApp() {
     }
   };
 
+  const handleFilterChange = (filter: 'all' | MessageStatus) => {
+    setMessageFilter(filter);
+    void loadMessages({ reset: true, filter });
+  };
+
   useEffect(() => {
     checkAuth().then((isAuth) => {
       setAuthChecking(false);
       if (isAuth) {
-        loadContent();
-        loadMessages();
+        void loadContent();
+        void loadMessages({ reset: true, filter: 'all' });
       }
     });
   }, []);
@@ -142,15 +181,30 @@ export default function AdminApp() {
       const response = await fetch('/api/admin/content', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(content)
+        body: JSON.stringify({ content, updatedAt: contentUpdatedAt })
       });
       if (response.status === 401) {
         setAuthenticated(false);
         throw new Error('Session expired. Please log in again.');
       }
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 409) {
+        showNotice(
+          'Another session changed this content. Reloaded the latest version; reapply your edits.',
+          'error'
+        );
+        await loadContent();
+        return;
+      }
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Could not save changes.');
+      }
+
+      if (typeof data.updatedAt === 'string') {
+        setContentUpdatedAt(data.updatedAt);
       }
       showNotice('Changes saved. Your live site will reflect the updated content.');
     } catch (error) {
@@ -182,6 +236,7 @@ export default function AdminApp() {
         setMessages((prev) =>
           prev.map((m) => (m.id === id ? (data.message as ContactMessage) : m))
         );
+        void loadMessages({ reset: true, filter: messageFilter });
         return true;
       }
       return false;
@@ -201,6 +256,7 @@ export default function AdminApp() {
       }
 
       setMessages((prev) => prev.filter((m) => m.id !== id));
+      void loadMessages({ reset: true, filter: messageFilter });
 
       return true;
     } catch {
@@ -212,13 +268,16 @@ export default function AdminApp() {
     setUploadingIndex(index);
     setNotice(null);
     try {
+      const uploadFile = await prepareImageForUpload(file);
+      const optimized = uploadFile !== file;
+
       const response = await fetch('/api/admin/media/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size
+          fileName: uploadFile.name,
+          contentType: uploadFile.type,
+          size: uploadFile.size
         })
       });
 
@@ -236,7 +295,7 @@ export default function AdminApp() {
       Object.entries(ticket.fields as Record<string, string>).forEach(([key, value]) =>
         form.append(key, value)
       );
-      form.append('file', file);
+      form.append('file', uploadFile);
 
       const uploaded = await fetch(ticket.uploadUrl, { method: 'POST', body: form });
       if (!uploaded.ok) {
@@ -262,7 +321,9 @@ export default function AdminApp() {
       update((d) => {
         d.projects[index].imageUrl = verified.publicUrl;
       });
-      showNotice('Image uploaded. Save changes to publish it on the website.');
+      showNotice(
+        `Image uploaded${optimized ? ' and optimized' : ''}. Save changes to publish it on the website.`
+      );
     } catch (error) {
       showNotice(error instanceof Error ? error.message : 'Image upload failed.', 'error');
     } finally {
@@ -275,6 +336,10 @@ export default function AdminApp() {
     setActiveTab(tabName);
     document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   // 1. Initial auth verification loading state
   if (authChecking) {
@@ -297,8 +362,8 @@ export default function AdminApp() {
         onSuccess={(username) => {
           setAuthenticated(true);
           setCurrentUser(username);
-          loadContent();
-          loadMessages();
+          void loadContent();
+          void loadMessages({ reset: true, filter: 'all' });
         }}
       />
     );
@@ -325,7 +390,7 @@ export default function AdminApp() {
           <div class="admin-title-row">
             <div>
               <span class="section-kicker">CONTENT MANAGEMENT</span>
-              <h1>Good morning, {currentUser}.</h1>
+              <h1>{greeting}, {currentUser}.</h1>
               <p>Keep your website fresh. Your changes are saved directly to your content database.</p>
             </div>
             <button
@@ -356,7 +421,11 @@ export default function AdminApp() {
             messages={messages}
             stats={messagesStats}
             loading={messagesLoading}
-            onRefresh={loadMessages}
+            filter={messageFilter}
+            hasMore={messagesHasMore}
+            onFilterChange={handleFilterChange}
+            onLoadMore={() => void loadMessages()}
+            onRefresh={() => void loadMessages({ reset: true })}
             onUpdateStatus={handleUpdateMessageStatus}
             onDeleteMessage={handleDeleteMessage}
           />
