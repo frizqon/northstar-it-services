@@ -90,14 +90,16 @@ authRouter.post('/logout', (c) => {
 
   // Clear both names. The legacy cookie is no longer accepted for auth, but
   // deleting it removes stale browser state after the migration.
-  const isSecure = c.env.ENVIRONMENT === 'production';
-  const cookieOptions = {
+  const isHttps = c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https';
+  const isSecure = isHttps || c.env.ENVIRONMENT === 'production';
+  const baseCookieOptions = {
     path: '/',
     httpOnly: true,
-    secure: isSecure,
     sameSite: 'Lax' as const
   };
-  deleteCookie(c, ADMIN_SESSION_COOKIE_PROD, cookieOptions);
-  deleteCookie(c, ADMIN_SESSION_COOKIE, cookieOptions);
+  // The __Host- prefix is only valid with the Secure attribute, so its deletion
+  // must always set Secure even when the local request is served over HTTP.
+  deleteCookie(c, ADMIN_SESSION_COOKIE_PROD, { ...baseCookieOptions, secure: true });
+  deleteCookie(c, ADMIN_SESSION_COOKIE, { ...baseCookieOptions, secure: isSecure });
   return c.json({ ok: true });
 });
