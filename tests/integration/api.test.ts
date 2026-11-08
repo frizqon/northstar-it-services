@@ -1,16 +1,22 @@
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it, expect } from 'vitest';
 import app from '../../src/worker/index';
 import type { WorkerEnv } from '../../src/worker/types';
 import { DEFAULT_CONTENT } from '../../src/content/default';
 import { resetInMemoryStore } from '../../src/worker/lib/db';
 
+// Generate ephemeral credentials per test run. Never commit test secrets.
+const TEST_ADMIN_USERNAME = 'admin';
+const TEST_ADMIN_PASSWORD = randomUUID();
+const TEST_ADMIN_JWT_SECRET = `${randomUUID()}${randomUUID()}`;
+
 const mockEnv: WorkerEnv['Bindings'] = {
   ASSETS: { fetch: async () => new Response('Asset not found', { status: 404 }) },
   ENVIRONMENT: 'development',
   DEV_AUTH_BYPASS: 'true',
-  ADMIN_USERNAME: 'admin',
-  ADMIN_PASSWORD: 'REDACTED',
-  ADMIN_JWT_SECRET: 'REDACTED'
+  ADMIN_USERNAME: TEST_ADMIN_USERNAME,
+  ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
+  ADMIN_JWT_SECRET: TEST_ADMIN_JWT_SECRET
 };
 
 beforeEach(() => {
@@ -121,7 +127,7 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
           'Content-Type': 'application/json',
           'CF-Connecting-IP': '192.168.1.102'
         },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       mockEnv
     );
@@ -145,7 +151,7 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
           'Content-Type': 'application/json',
           'CF-Connecting-IP': '192.168.1.103'
         },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       prodEnv
     );
@@ -180,7 +186,7 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       mockEnv
     );
@@ -216,7 +222,7 @@ describe('Worker Integration: Content Mutation & DoS Protection', () => {
           'Content-Type': 'application/json',
           'CF-Connecting-IP': '192.168.1.200'
         },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       mockEnv
     );
@@ -281,7 +287,7 @@ describe('Worker Integration: Media Upload Verification', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       mockEnv
     );
@@ -453,7 +459,7 @@ describe('Worker Integration: Contact Messages Feature', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.168.1.205' },
-        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
       },
       mockEnv
     );
