@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { WorkerEnv, MessageStatus } from '../types';
 import { verifyAdmin } from '../middleware/auth';
 import { isLocalDev, isSafeOrigin } from '../lib/security';
+import { verifyTurnstile } from '../lib/turnstile';
 import { contactRateLimiter } from '../middleware/rateLimit';
 import {
   validateContactInput,
@@ -34,6 +35,33 @@ contactRouter.post('/contact', contactRateLimiter, async (c) => {
   const validation = validateContactInput(payload);
   if (!validation.valid || !validation.data) {
     return c.json({ error: validation.error || 'Invalid form input' }, 400);
+  }
+
+  if (c.env.TURNSTILE_SECRET_KEY) {
+    const body = payload as Record<string, unknown>;
+    const turnstileToken =
+      typeof body.turnstileToken === 'string' ? body.turnstileToken.trim() : '';
+
+    if (!turnstileToken) {
+      return c.json({ error: 'Please complete the security challenge.' }, 400);
+    }
+
+    const verification = await verifyTurnstile(
+      c.env.TURNSTILE_SECRET_KEY,
+      turnstileToken,
+      c.req.header('cf-connecting-ip')
+    );
+
+    if (!verification.success) {
+      console.warn(
+        JSON.stringify({
+          event: 'turnstile_failed',
+          requestId: c.get('requestId'),
+          errors: verification.errors
+        })
+      );
+      return c.json({ error: 'Security challenge failed. Please try again.' }, 400);
+    }
   }
 
   const isLocal = isLocalDev(c);

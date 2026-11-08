@@ -18,3 +18,8 @@ ADMIN_JWT_SECRET=your-random-32-character-secret-key
 # Optional: Cloudflare Access JWT validation
 CF_ACCESS_TEAM_DOMAIN=YOUR_TEAM.cloudflareaccess.com
 CF_ACCESS_AUD=YOUR_ACCESS_APPLICATION_AUD
+
+# Optional: Cloudflare Turnstile contact-form protection
+# Set both values in production; leave blank locally to disable the challenge.
+TURNSTILE_SITE_KEY=YOUR_TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET_KEY

@@ -11,6 +11,8 @@ export type WorkerEnv = {
     ADMIN_JWT_SECRET?: string;
     CF_ACCESS_TEAM_DOMAIN?: string;
     CF_ACCESS_AUD?: string;
+    TURNSTILE_SITE_KEY?: string;
+    TURNSTILE_SECRET_KEY?: string;
     AWS_ENDPOINT_URL_S3?: string;
     AWS_REGION?: string;
     AWS_ACCESS_KEY_ID?: string;

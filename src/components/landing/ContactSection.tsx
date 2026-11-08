@@ -1,6 +1,7 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, TargetedEvent } from 'preact';
 import type { SiteContent } from '../../content/default';
+import { loadTurnstileScript } from '../../utils/turnstile';
 import { StatusDot } from '../ui/StatusDot';
 
 interface ContactSectionProps {
@@ -14,8 +15,66 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileContainer = useRef<HTMLDivElement>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
 
   const mailtoUrl = `mailto:${encodeURIComponent(contact.email)}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/config', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled || typeof data?.turnstileSiteKey !== 'string' || !data.turnstileSiteKey) {
+          return;
+        }
+        setTurnstileSiteKey(data.turnstileSiteKey);
+      })
+      .catch(() => {
+        // The contact form still works when Turnstile is not configured.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!turnstileSiteKey || status !== 'idle' || !turnstileContainer.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || !window.turnstile || !turnstileContainer.current) {
+          return;
+        }
+
+        turnstileWidgetId.current = window.turnstile.render(turnstileContainer.current, {
+          sitekey: turnstileSiteKey,
+          theme: 'auto',
+          callback: (token) => setTurnstileToken(token),
+          'expired-callback': () => setTurnstileToken(''),
+          'error-callback': () => setTurnstileToken('')
+        });
+      })
+      .catch(() => {
+        setErrorMessage('Security challenge failed to load. Please refresh and try again.');
+      });
+
+    return () => {
+      cancelled = true;
+      if (window.turnstile && turnstileWidgetId.current) {
+        window.turnstile.remove(turnstileWidgetId.current);
+        turnstileWidgetId.current = null;
+      }
+    };
+  }, [turnstileSiteKey, status]);
 
   const handleSubmit = async (e: TargetedEvent<HTMLFormElement, Event>) => {
     e.preventDefault();
@@ -39,6 +98,11 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
       return;
     }
 
+    if (turnstileSiteKey && !turnstileToken) {
+      setErrorMessage('Please complete the security challenge.');
+      return;
+    }
+
     setSubmitting(true);
     setStatus('idle');
 
@@ -49,7 +113,8 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
         body: JSON.stringify({
           name: trimmedName,
           email: trimmedEmail,
-          message: trimmedMessage
+          message: trimmedMessage,
+          ...(turnstileToken ? { turnstileToken } : {})
         })
       });
 
@@ -66,6 +131,10 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
     } catch (err) {
       setStatus('error');
       setErrorMessage(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setTurnstileToken('');
+      if (window.turnstile && turnstileWidgetId.current) {
+        window.turnstile.reset(turnstileWidgetId.current);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -186,6 +255,10 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
                     disabled={submitting}
                   />
                 </div>
+
+                {turnstileSiteKey && (
+                  <div class="contact-turnstile" ref={turnstileContainer} aria-label="Security challenge" />
+                )}
 
                 <button
                   type="submit"
