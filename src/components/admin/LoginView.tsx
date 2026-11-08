@@ -6,7 +6,7 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onSuccess }: LoginViewProps): JSX.Element {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

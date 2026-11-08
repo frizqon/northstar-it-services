@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { ContactMessage, ContactMessageStats, MessageStatus } from '../../worker/types';
 
@@ -6,6 +6,10 @@ interface MessagesManagerProps {
   messages: ContactMessage[];
   stats: ContactMessageStats;
   loading: boolean;
+  filter: 'all' | MessageStatus;
+  hasMore: boolean;
+  onFilterChange: (filter: 'all' | MessageStatus) => void;
+  onLoadMore: () => void;
   onRefresh: () => void;
   onUpdateStatus: (id: number, status: MessageStatus, replyNotes?: string | null) => Promise<boolean>;
   onDeleteMessage: (id: number) => Promise<boolean>;
@@ -15,20 +19,19 @@ export function MessagesManager({
   messages,
   stats,
   loading,
+  filter,
+  hasMore,
+  onFilterChange,
+  onLoadMore,
   onRefresh,
   onUpdateStatus,
   onDeleteMessage
 }: MessagesManagerProps): JSX.Element {
-  const [filter, setFilter] = useState<'all' | MessageStatus>('all');
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [replyText, setReplyText] = useState('');
   const [actionInProgress, setActionInProgress] = useState(false);
   const [managerNotice, setManagerNotice] = useState('');
-
-  const filteredMessages = messages.filter((m) => {
-    if (filter === 'all') return true;
-    return m.status === filter;
-  });
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const handleOpenDetail = async (msg: ContactMessage) => {
     setSelectedMessage(msg);
@@ -37,7 +40,8 @@ export function MessagesManager({
     // If message is unread, mark it as read upon opening
     if (msg.status === 'unread') {
       try {
-        await onUpdateStatus(msg.id, 'read');
+        const ok = await onUpdateStatus(msg.id, 'read');
+        if (!ok) return;
         const now = new Date().toISOString();
         setSelectedMessage((prev) =>
           prev && prev.id === msg.id
@@ -58,16 +62,41 @@ export function MessagesManager({
   useEffect(() => {
     if (!selectedMessage) return;
 
+    const previousFocus = document.activeElement as HTMLElement | null;
+    modalRef.current?.focus();
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setSelectedMessage(null);
         setReplyText('');
+        return;
+      }
+
+      if (event.key !== 'Tab' || !modalRef.current) return;
+
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedMessage]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [selectedMessage?.id]);
 
   const handleQuickStatusChange = async (msg: ContactMessage, newStatus: MessageStatus) => {
     setActionInProgress(true);
@@ -113,8 +142,17 @@ export function MessagesManager({
         subject
       )}&body=${encodeURIComponent(bodyPrefix)}`;
 
-      // Update backend status to 'replied'
-      await onUpdateStatus(selectedMessage.id, 'replied', replyText.trim() || 'Replied via email client');
+      // Update backend status to 'replied' before opening the mail client.
+      const updated = await onUpdateStatus(
+        selectedMessage.id,
+        'replied',
+        replyText.trim() || 'Replied via email client'
+      );
+
+      if (!updated) {
+        setManagerNotice('Could not update status to replied.');
+        return;
+      }
 
       // Open email client
       window.location.href = mailtoUrl;
@@ -202,7 +240,7 @@ export function MessagesManager({
         <button
           type="button"
           class={`status-tab ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
+          onClick={() => onFilterChange('all')}
         >
           <span class="tab-label">All Messages</span>
           <span class="tab-badge">{stats.total}</span>
@@ -211,7 +249,7 @@ export function MessagesManager({
         <button
           type="button"
           class={`status-tab ${filter === 'unread' ? 'active' : ''} ${stats.unread > 0 ? 'needs-attention' : ''}`}
-          onClick={() => setFilter('unread')}
+          onClick={() => onFilterChange('unread')}
         >
           <span class="tab-label">
             {stats.unread > 0 && <span class="attention-dot" aria-hidden="true" />}
@@ -223,7 +261,7 @@ export function MessagesManager({
         <button
           type="button"
           class={`status-tab ${filter === 'read' ? 'active' : ''}`}
-          onClick={() => setFilter('read')}
+          onClick={() => onFilterChange('read')}
         >
           <span class="tab-label">Read</span>
           <span class="tab-badge">{stats.read}</span>
@@ -232,7 +270,7 @@ export function MessagesManager({
         <button
           type="button"
           class={`status-tab ${filter === 'replied' ? 'active' : ''}`}
-          onClick={() => setFilter('replied')}
+          onClick={() => onFilterChange('replied')}
         >
           <span class="tab-label">Replied</span>
           <span class="tab-badge tab-badge-replied">{stats.replied}</span>
@@ -240,7 +278,7 @@ export function MessagesManager({
       </div>
 
       {/* Messages Table */}
-      {filteredMessages.length === 0 ? (
+      {messages.length === 0 ? (
         <div class="empty-messages-state">
           <p>
             {filter === 'all'
@@ -261,11 +299,20 @@ export function MessagesManager({
               </tr>
             </thead>
             <tbody>
-              {filteredMessages.map((msg) => (
+              {messages.map((msg) => (
                 <tr
                   key={msg.id}
                   class={`message-row ${msg.status === 'unread' ? 'is-unread' : ''}`}
                   onClick={() => handleOpenDetail(msg)}
+                  tabIndex={0}
+                  aria-label={`View message from ${msg.name}`}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      void handleOpenDetail(msg);
+                    }
+                  }}
                 >
                   <td>
                     <div class="status-col-wrapper">
@@ -322,6 +369,18 @@ export function MessagesManager({
               ))}
             </tbody>
           </table>
+          {hasMore && (
+            <div class="messages-load-more">
+              <button
+                type="button"
+                class="button button-dark"
+                onClick={onLoadMore}
+                disabled={loading}
+              >
+                {loading ? 'Loading…' : 'Load more messages'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -333,6 +392,8 @@ export function MessagesManager({
             role="dialog"
             aria-modal="true"
             aria-labelledby="message-detail-title"
+            ref={modalRef}
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
           >
             <div class="msg-modal-header">
@@ -340,7 +401,7 @@ export function MessagesManager({
                 <span class="section-kicker">MESSAGE DETAILS</span>
                 <h3 id="message-detail-title">{selectedMessage.name}</h3>
                 <a
-                  href={`mailto:${selectedMessage.email}`}
+                  href={`mailto:${encodeURIComponent(selectedMessage.email)}`}
                   class="modal-sender-email"
                 >
                   {selectedMessage.email} ↗

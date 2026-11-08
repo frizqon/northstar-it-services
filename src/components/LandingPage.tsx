@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { DEFAULT_CONTENT, type SiteContent } from '../content/default';
+import { validateSiteContent } from '../content/validate';
 import { Navbar } from './landing/Navbar';
 import { HeroSection } from './landing/HeroSection';
 import { ServicesSection } from './landing/ServicesSection';
@@ -19,7 +20,11 @@ export default function LandingPage({ initialContent = DEFAULT_CONTENT }: Landin
     fetch('/api/content', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data) setContent(data);
+        if (validateSiteContent(data)) {
+          setContent(data);
+        } else if (data) {
+          console.warn('Ignored invalid content payload; keeping the server-rendered content');
+        }
       })
       .catch((err) => {
         console.warn('Failed to load dynamic content, using defaults', err);

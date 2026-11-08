@@ -34,30 +34,11 @@ export function timingSafeEqual(a: string, b: string): boolean {
 
 /**
  * Determines whether the current request is running in local development.
- * Never trusts request hostname if ENVIRONMENT is set to 'production'.
+ * Fails closed: only an explicit `ENVIRONMENT=development` binding enables
+ * development behaviour. Hostnames and request headers are never trusted.
  */
 export function isLocalDev(c: Context<WorkerEnv>): boolean {
-  if (c.env.ENVIRONMENT === 'production') {
-    return false;
-  }
-
-  if (c.env.ENVIRONMENT === 'development') {
-    return true;
-  }
-
-  try {
-    const url = new URL(c.req.url);
-    const hostname = url.hostname;
-    const isLoopback =
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname.endsWith('.localhost');
-
-    return isLoopback || c.env.DEV_AUTH_BYPASS === 'true';
-  } catch {
-    return false;
-  }
+  return c.env.ENVIRONMENT === 'development';
 }
 
 /**
@@ -79,7 +60,9 @@ export function isSafeOrigin(c: Context<WorkerEnv>): boolean {
   try {
     const originUrl = new URL(origin);
     const requestUrl = new URL(c.req.url);
-    return originUrl.host === requestUrl.host;
+    // Compare the full origin (scheme, host, port) so an HTTP page on the same
+    // host cannot issue state-changing requests to the HTTPS origin.
+    return originUrl.origin === requestUrl.origin;
   } catch {
     return false;
   }

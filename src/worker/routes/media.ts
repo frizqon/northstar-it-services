@@ -3,6 +3,7 @@ import type { WorkerEnv, PresignInput, ConfirmMediaInput } from '../types';
 import { verifyAdmin } from '../middleware/auth';
 import { isSafeOrigin } from '../lib/security';
 import { createPresignedUpload, confirmUploadedMedia } from '../lib/s3';
+import { logError } from '../lib/log';
 
 export const mediaRouter = new Hono<WorkerEnv>();
 
@@ -33,7 +34,7 @@ mediaRouter.post('/admin/media/presign', verifyAdmin, async (c) => {
       return c.json({ error: error.message }, 503);
     }
 
-    console.error('Create upload URL failed', error);
+    logError('media_presign_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not prepare image upload' }, 502);
   }
 });
@@ -67,7 +68,7 @@ mediaRouter.post('/admin/media/confirm', verifyAdmin, async (c) => {
       return c.json({ error: 'Uploaded file not found' }, 404);
     }
 
-    console.error('Confirm media upload failed', error);
+    logError('media_confirm_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not verify image upload' }, 502);
   }
 });

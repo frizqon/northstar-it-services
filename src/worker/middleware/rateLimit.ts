@@ -116,7 +116,7 @@ export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) 
   if (record) {
     if (now - record.firstAttemptAt > CONTACT_WINDOW_MS) {
       // Window expired, start fresh
-      contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+      contactAttempts.delete(ip);
     } else if (record.count >= MAX_CONTACT_ATTEMPTS) {
       const remainingSeconds = Math.ceil((record.firstAttemptAt + CONTACT_WINDOW_MS - now) / 1000);
       c.header('Retry-After', remainingSeconds.toString());
@@ -126,12 +126,20 @@ export const contactRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) 
         },
         429
       );
-    } else {
-      record.count += 1;
     }
-  } else {
-    contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
   }
 
   await next();
+
+  // Only successful submissions consume quota. Invalid payloads and failed
+  // Turnstile checks are still bounded by body limits and the Turnstile check,
+  // but they do not lock a legitimate visitor out of the contact form.
+  if (c.res.status === 201) {
+    const current = contactAttempts.get(ip);
+    if (!current || now - current.firstAttemptAt > CONTACT_WINDOW_MS) {
+      contactAttempts.set(ip, { count: 1, firstAttemptAt: now });
+    } else {
+      current.count += 1;
+    }
+  }
 };

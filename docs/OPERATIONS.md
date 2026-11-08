@@ -163,3 +163,27 @@ To inspect or change the rule:
 4. Keep **Require branches to be up to date before merging** enabled.
 
 The deploy workflow remains the final gate: it reruns `typecheck`, `test`, and `build` on `main` before deploying. A failing test prevents deployment and sends a deploy failure notification.
+
+---
+
+## 9. Contact message retention
+
+`contact_messages` contains personal data (name, email, free-form message). Define and enforce a retention window before the inbox grows indefinitely.
+
+Recommended policy:
+
+- Keep unresolved (`unread` / `read`) messages for 12 months.
+- Keep `replied` messages for 6 months after `replied_at`.
+- Delete or anonymize rows older than the window on a monthly schedule.
+
+There is no automated job yet. Run a reviewed query against a Neon branch first:
+
+```sql
+SELECT id, created_at, status, replied_at
+FROM public.contact_messages
+WHERE (status = 'replied' AND replied_at < now() - interval '6 months')
+   OR (status <> 'replied' AND created_at < now() - interval '12 months')
+ORDER BY created_at;
+```
+
+After review, delete by id in small batches. Export an encrypted backup first if the data may be needed for legal or accounting reasons.

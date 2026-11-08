@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import AdminApp from '../../components/AdminApp';
+import AdminRoot from '../../components/AdminRoot';
 ---
 
 <BaseLayout
@@ -9,5 +9,5 @@ import AdminApp from '../../components/AdminApp';
   robots="noindex,nofollow"
   themeColor="#f3f5f2"
 >
-  <AdminApp client:load />
+  <AdminRoot client:load />
 </BaseLayout>

@@ -36,7 +36,7 @@ export async function checkAdminAuth(c: Context<WorkerEnv>): Promise<AuthResult>
     if (secretStr) {
       try {
         const secret = new TextEncoder().encode(secretStr);
-        const { payload } = await jwtVerify(sessionToken, secret);
+        const { payload } = await jwtVerify(sessionToken, secret, { algorithms: ['HS256'] });
         const username = typeof payload.user === 'string' ? payload.user : 'admin';
         return { authenticated: true, user: { username } };
       } catch {

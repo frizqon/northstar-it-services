@@ -4,6 +4,7 @@ import { verifyAdmin } from '../middleware/auth';
 import { isLocalDev, isSafeOrigin } from '../lib/security';
 import { getSiteContent, saveSiteContent, validateSiteContent } from '../lib/db';
 import { triggerContentRebuild } from '../lib/rebuild';
+import { logError } from '../lib/log';
 import type { SiteContent } from '../../content/default';
 
 export const contentRouter = new Hono<WorkerEnv>();
@@ -27,7 +28,22 @@ contentRouter.get('/content', async (c) => {
 
     return c.json(content, 200, headers);
   } catch (error) {
-    console.error('Read content failed', error);
+    logError('content_read_failed', error, { requestId: c.get('requestId') });
+    return c.json({ error: 'Content is temporarily unavailable' }, 503);
+  }
+});
+
+/**
+ * Authenticated content read used by the CMS. It bypasses the public edge
+ * cache so an editor never opens a stale snapshot and overwrites newer content.
+ */
+contentRouter.get('/admin/content', verifyAdmin, async (c) => {
+  try {
+    const { content, updatedAt } = await getSiteContent(c.env, isLocalDev(c));
+    c.header('Cache-Control', 'no-store');
+    return c.json({ content, updatedAt });
+  } catch (error) {
+    logError('admin_content_read_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Content is temporarily unavailable' }, 503);
   }
 });
@@ -44,7 +60,28 @@ contentRouter.put('/admin/content', verifyAdmin, async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
-  if (!validateSiteContent(payload)) {
+  // Accept both the legacy raw SiteContent body and the CMS envelope
+  // { content, updatedAt } used for optimistic concurrency.
+  const isEnvelope =
+    !!payload && typeof payload === 'object' && 'content' in (payload as Record<string, unknown>);
+  const body = isEnvelope
+    ? (payload as { content: unknown; updatedAt?: unknown })
+    : { content: payload, updatedAt: undefined };
+
+  let expectedUpdatedAt: string | null | undefined;
+  if (body.updatedAt === null) {
+    expectedUpdatedAt = null;
+  } else if (body.updatedAt !== undefined) {
+    if (
+      typeof body.updatedAt !== 'string' ||
+      Number.isNaN(Date.parse(body.updatedAt))
+    ) {
+      return c.json({ error: 'Invalid content revision' }, 400);
+    }
+    expectedUpdatedAt = body.updatedAt;
+  }
+
+  if (!validateSiteContent(body.content)) {
     return c.json({ error: 'Content is missing required fields or has invalid structure' }, 400);
   }
 
@@ -54,9 +91,24 @@ contentRouter.put('/admin/content', verifyAdmin, async (c) => {
   }
 
   try {
-    await saveSiteContent(c.env, payload as SiteContent, isLocal);
-    const updatedAt = new Date().toISOString();
-    const rebuild = triggerContentRebuild(c.env, updatedAt);
+    const result = await saveSiteContent(
+      c.env,
+      body.content as SiteContent,
+      isLocal,
+      expectedUpdatedAt
+    );
+
+    if (!result.ok) {
+      return c.json(
+        {
+          error: 'Content was updated by another session. Reload the editor and try again.',
+          conflict: true
+        },
+        409
+      );
+    }
+
+    const rebuild = triggerContentRebuild(c.env, result.updatedAt);
 
     try {
       c.executionCtx.waitUntil(rebuild);
@@ -64,9 +116,9 @@ contentRouter.put('/admin/content', verifyAdmin, async (c) => {
       await rebuild;
     }
 
-    return c.json({ ok: true, updatedAt });
+    return c.json({ ok: true, updatedAt: result.updatedAt });
   } catch (error) {
-    console.error('Save content failed', error);
+    logError('content_save_failed', error, { requestId: c.get('requestId') });
     return c.json({ error: 'Could not save content' }, 500);
   }
 });

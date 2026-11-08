@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { DEFAULT_CONTENT, type SiteContent } from '../../content/default';
+import { validateSiteContent } from '../../content/validate';
 import type {
   WorkerEnv,
   ContactMessage,
@@ -7,6 +8,11 @@ import type {
   ContactMessageStats,
   MessageStatus
 } from '../types';
+
+export { validateSiteContent } from '../../content/validate';
+
+export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
+export const MAX_MESSAGE_PAGE_SIZE = 100;
 
 let inMemoryContent: SiteContent = structuredClone(DEFAULT_CONTENT);
 let inMemoryContentUpdatedAt: string | null = null;
@@ -18,91 +24,6 @@ export function resetInMemoryStore(): void {
   inMemoryContentUpdatedAt = null;
   inMemoryMessages = [];
   nextMessageId = 1;
-}
-
-export function validateSiteContent(data: unknown): data is SiteContent {
-  if (!data || typeof data !== 'object') return false;
-  const c = data as Record<string, unknown>;
-
-  if (typeof c.brand !== 'string' || !c.brand.trim()) return false;
-
-  // Hero validation
-  if (!c.hero || typeof c.hero !== 'object') return false;
-  const hero = c.hero as Record<string, unknown>;
-  if (
-    typeof hero.eyebrow !== 'string' ||
-    typeof hero.title !== 'string' ||
-    typeof hero.highlight !== 'string' ||
-    typeof hero.description !== 'string' ||
-    typeof hero.primaryCta !== 'string' ||
-    typeof hero.secondaryCta !== 'string'
-  ) {
-    return false;
-  }
-
-  // Services validation
-  if (!Array.isArray(c.services)) return false;
-  for (const s of c.services) {
-    if (!s || typeof s !== 'object') return false;
-    if (
-      typeof s.title !== 'string' ||
-      typeof s.description !== 'string' ||
-      typeof s.number !== 'string' ||
-      typeof s.tag !== 'string'
-    ) {
-      return false;
-    }
-  }
-
-  // Projects validation
-  if (!Array.isArray(c.projects)) return false;
-  for (const p of c.projects) {
-    if (!p || typeof p !== 'object') return false;
-    if (
-      typeof p.name !== 'string' ||
-      typeof p.category !== 'string' ||
-      typeof p.description !== 'string' ||
-      typeof p.result !== 'string' ||
-      typeof p.tone !== 'string'
-    ) {
-      return false;
-    }
-  }
-
-  // About validation
-  if (!c.about || typeof c.about !== 'object') return false;
-  const about = c.about as Record<string, unknown>;
-  if (
-    typeof about.title !== 'string' ||
-    typeof about.description !== 'string' ||
-    typeof about.stat !== 'string' ||
-    typeof about.statLabel !== 'string'
-  ) {
-    return false;
-  }
-
-  // Contact validation
-  if (!c.contact || typeof c.contact !== 'object') return false;
-  const contact = c.contact as Record<string, unknown>;
-  if (
-    typeof contact.email !== 'string' ||
-    typeof contact.location !== 'string' ||
-    typeof contact.availability !== 'string'
-  ) {
-    return false;
-  }
-
-  // SEO validation
-  if (!c.seo || typeof c.seo !== 'object') return false;
-  const seo = c.seo as Record<string, unknown>;
-  if (
-    typeof seo.title !== 'string' ||
-    typeof seo.description !== 'string'
-  ) {
-    return false;
-  }
-
-  return true;
 }
 
 export function validateContactInput(data: unknown): {
@@ -174,35 +95,84 @@ export async function getSiteContent(
 
   const sql = neon(env.DATABASE_URL);
   const rows = await sql`SELECT content, updated_at FROM public.site_content WHERE id = 1 LIMIT 1`;
-  const row = rows[0] as { content?: SiteContent; updated_at?: unknown } | undefined;
+  const row = rows[0] as { content?: unknown; updated_at?: unknown } | undefined;
+  const rawContent = row?.content;
+
+  let content: SiteContent = DEFAULT_CONTENT;
+  if (rawContent !== undefined) {
+    if (validateSiteContent(rawContent)) {
+      content = rawContent;
+    } else {
+      console.warn(JSON.stringify({ event: 'site_content_invalid_row' }));
+    }
+  }
+
   return {
-    content: row?.content ?? DEFAULT_CONTENT,
+    content,
     updatedAt: toIsoString(row?.updated_at)
   };
 }
 
+export type SaveSiteContentResult =
+  | { ok: true; updatedAt: string }
+  | { ok: false; conflict: true };
+
 export async function saveSiteContent(
   env: WorkerEnv['Bindings'],
   content: SiteContent,
-  isLocal: boolean
-): Promise<void> {
+  isLocal: boolean,
+  expectedUpdatedAt?: string | null
+): Promise<SaveSiteContentResult> {
   if (!env.DATABASE_URL) {
     if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== inMemoryContentUpdatedAt) {
+        return { ok: false, conflict: true };
+      }
       inMemoryContent = structuredClone(content);
       inMemoryContentUpdatedAt = new Date().toISOString();
-      return;
+      return { ok: true, updatedAt: inMemoryContentUpdatedAt };
     }
     throw new Error('Database is not configured');
   }
 
   const sql = neon(env.DATABASE_URL);
-  await sql`
-    INSERT INTO public.site_content (id, content, updated_at)
-    VALUES (1, ${JSON.stringify(content)}::jsonb, now())
-    ON CONFLICT (id) DO UPDATE SET
-      content = EXCLUDED.content,
-      updated_at = now()
+
+  if (expectedUpdatedAt === undefined) {
+    // Legacy clients without a precondition keep last-write-wins behaviour.
+    const rows = await sql`
+      INSERT INTO public.site_content (id, content, updated_at)
+      VALUES (1, ${JSON.stringify(content)}::jsonb, now())
+      ON CONFLICT (id) DO UPDATE SET
+        content = EXCLUDED.content,
+        updated_at = now()
+      RETURNING updated_at
+    `;
+    return { ok: true, updatedAt: toIsoString(rows[0]?.updated_at) ?? new Date().toISOString() };
+  }
+
+  if (expectedUpdatedAt === null) {
+    // First save: only insert when the singleton row does not exist yet.
+    const rows = await sql`
+      INSERT INTO public.site_content (id, content, updated_at)
+      VALUES (1, ${JSON.stringify(content)}::jsonb, now())
+      ON CONFLICT (id) DO NOTHING
+      RETURNING updated_at
+    `;
+    if (rows.length === 0) return { ok: false, conflict: true };
+    return { ok: true, updatedAt: toIsoString(rows[0]?.updated_at) ?? new Date().toISOString() };
+  }
+
+  const rows = await sql`
+    UPDATE public.site_content
+    SET content = ${JSON.stringify(content)}::jsonb,
+        updated_at = now()
+    WHERE id = 1
+      AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${expectedUpdatedAt}::timestamptz)
+    RETURNING updated_at
   `;
+
+  if (rows.length === 0) return { ok: false, conflict: true };
+  return { ok: true, updatedAt: toIsoString(rows[0]?.updated_at) ?? new Date().toISOString() };
 }
 
 export async function saveContactMessage(
@@ -244,14 +214,17 @@ export async function saveContactMessage(
 export async function getContactMessages(
   env: WorkerEnv['Bindings'],
   isLocal: boolean,
-  statusFilter?: MessageStatus | 'all'
+  statusFilter?: MessageStatus | 'all',
+  limit: number = DEFAULT_MESSAGE_PAGE_SIZE,
+  offset: number = 0
 ): Promise<ContactMessage[]> {
   if (!env.DATABASE_URL) {
     if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
-      if (!statusFilter || statusFilter === 'all') {
-        return [...inMemoryMessages];
-      }
-      return inMemoryMessages.filter((m) => m.status === statusFilter);
+      const filtered =
+        !statusFilter || statusFilter === 'all'
+          ? [...inMemoryMessages]
+          : inMemoryMessages.filter((m) => m.status === statusFilter);
+      return filtered.slice(offset, offset + limit);
     }
     throw new Error('Database is not configured');
   }
@@ -263,6 +236,7 @@ export async function getContactMessages(
       FROM public.contact_messages
       WHERE status = ${statusFilter}
       ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `;
     return rows as unknown as ContactMessage[];
   }
@@ -271,6 +245,7 @@ export async function getContactMessages(
     SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
     FROM public.contact_messages
     ORDER BY created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
   `;
   return rows as unknown as ContactMessage[];
 }

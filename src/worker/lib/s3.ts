@@ -2,6 +2,7 @@ import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { WorkerEnv, PresignInput, ConfirmMediaInput } from '../types';
 import { detectImageType, expectedImageTypeForKey, isMediaKey } from './media';
+import { logError } from './log';
 
 export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
 
@@ -141,7 +142,7 @@ export async function confirmUploadedMedia(
   const detectedType = detectImageType(bytes);
   if (detectedType !== expectedType) {
     await s3.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key })).catch((error) => {
-      console.error('Delete invalid media failed', error);
+      logError('media_invalid_delete_failed', error, { key });
     });
     throw new RangeError('Uploaded file content does not match its image type');
   }
