@@ -33,17 +33,15 @@ authRouter.post('/login', loginRateLimiter, async (c) => {
 
   const isLocal = isLocalDev(c);
 
-  const expectedUser = c.env.ADMIN_USERNAME || (isLocal ? 'admin' : undefined);
-  const expectedPass = c.env.ADMIN_PASSWORD || (isLocal ? 'REDACTED' : undefined);
-  const secretStr =
-    c.env.ADMIN_JWT_SECRET ||
-    (isLocal ? 'REDACTED' : undefined);
+  const expectedUser = c.env.ADMIN_USERNAME;
+  const expectedPass = c.env.ADMIN_PASSWORD;
+  const secretStr = c.env.ADMIN_JWT_SECRET;
 
   if (!expectedPass || !expectedUser || !secretStr) {
     return c.json(
       {
         error: isLocal
-          ? 'Admin credentials are not configured.'
+          ? 'Admin credentials are not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_JWT_SECRET in .dev.vars.'
           : 'Admin authentication is not configured in production. Set ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_JWT_SECRET in Cloudflare Worker secrets.'
       },
       503

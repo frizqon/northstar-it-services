@@ -125,7 +125,7 @@ Test the restore path at least quarterly.
 
 ## 8. PR checks and CI notifications
 
-The CI workflow runs `typecheck`, unit and integration tests, build, and Playwright E2E for every pull request targeting `main` or `dev`. The required check name is:
+The CI workflow runs `typecheck`, unit and integration tests, build, and Playwright E2E for every pull request targeting `main` or `dev`. It also runs a `gitleaks` scan over the pull request commit range. The required check name is:
 
 ```text
 Typecheck, Test, Build & E2E
@@ -140,6 +140,8 @@ For pull requests targeting `main`, CI sends a Telegram message on completion:
 - Links to the workflow run and pull request
 
 Notification uses the existing `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` repository secrets. If either secret is missing, the notification step logs a skip message and does not fail CI.
+
+Test credentials for Playwright and Vitest are generated per run. Do not add admin passwords or JWT secrets to source files, test fixtures, or workflow YAML.
 
 ### Required status check
 

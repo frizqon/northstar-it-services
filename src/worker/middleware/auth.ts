@@ -31,9 +31,7 @@ export async function checkAdminAuth(c: Context<WorkerEnv>): Promise<AuthResult>
   // 1. Session Cookie Check
   const sessionToken = readSessionToken(c);
   if (sessionToken) {
-    const secretStr =
-      env.ADMIN_JWT_SECRET ||
-      (isLocal ? 'REDACTED' : undefined);
+    const secretStr = env.ADMIN_JWT_SECRET;
 
     if (secretStr) {
       try {
