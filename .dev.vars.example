@@ -1,6 +1,7 @@
 # Copy this file to .dev.vars for local development, then replace the placeholders.
 # Never commit .dev.vars or share these values publicly.
 # Use a dedicated Neon branch for local development, never the production main branch.
+# Apply migrations to that branch with: npm run db:migrate
 ENVIRONMENT=development
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
 AWS_ENDPOINT_URL_S3=https://YOUR-BRANCH.storage.c-REGION.aws.neon.tech

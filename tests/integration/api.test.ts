@@ -38,6 +38,19 @@ describe('Worker Integration: Security Headers & Health', () => {
     );
   });
 
+  it('should attach a request ID header and echo a valid incoming request ID', async () => {
+    const generated = await app.request('/api/health', {}, mockEnv);
+    expect(generated.headers.get('X-Request-Id')).toMatch(/^[A-Za-z0-9._:-]{8,128}$/);
+
+    const incoming = 'support-ticket-12345';
+    const echoed = await app.request(
+      '/api/health',
+      { headers: { 'X-Request-Id': incoming } },
+      mockEnv
+    );
+    expect(echoed.headers.get('X-Request-Id')).toBe(incoming);
+  });
+
   it('GET /api/health should return ok: true and environment info', async () => {
     const res = await app.request('/api/health', {}, mockEnv);
     const data = await res.json();
@@ -103,6 +116,33 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(res.headers.get('Set-Cookie')).toContain('admin_session=');
+    expect(res.headers.get('Set-Cookie')).toContain('Max-Age=43200');
+  });
+
+  it('POST /api/admin/login should use a __Host- cookie and 12-hour session in production', async () => {
+    const prodEnv: WorkerEnv['Bindings'] = {
+      ...mockEnv,
+      ENVIRONMENT: 'production'
+    };
+    const res = await app.request(
+      'https://northstar.example/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.103'
+        },
+        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+      },
+      prodEnv
+    );
+
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get('Set-Cookie') || '';
+    expect(setCookie).toContain('__Host-admin_session=');
+    expect(setCookie).toContain('Secure');
+    expect(setCookie).toContain('Path=/');
+    expect(setCookie).toContain('Max-Age=43200');
   });
 
   it('POST /api/admin/login should trigger 429 Too Many Requests after 5 consecutive failures', async () => {
