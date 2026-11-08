@@ -21,14 +21,24 @@ jobs:
 
       - name: Secret scan
         env:
+          GH_TOKEN: ${{ github.token }}
           GITLEAKS_VERSION: '8.30.1'
           GITLEAKS_LINUX_X64_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
         run: |
           mkdir -p "$RUNNER_TEMP/gitleaks"
-          curl -sSfL -o "$RUNNER_TEMP/gitleaks/gitleaks.tar.gz" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_LINUX_X64_SHA256}  $RUNNER_TEMP/gitleaks/gitleaks.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gitleaks/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks"
+          GITLEAKS_ASSET="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          if ! curl -sSfL --retry 5 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 15 --max-time 180 \
+            -o "$RUNNER_TEMP/gitleaks/$GITLEAKS_ASSET" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_ASSET}"; then
+            gh release download "v${GITLEAKS_VERSION}" \
+              --repo gitleaks/gitleaks \
+              --pattern "$GITLEAKS_ASSET" \
+              --dir "$RUNNER_TEMP/gitleaks" \
+              --clobber
+          fi
+          echo "${GITLEAKS_LINUX_X64_SHA256}  $RUNNER_TEMP/gitleaks/$GITLEAKS_ASSET" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks/$GITLEAKS_ASSET" -C "$RUNNER_TEMP/gitleaks"
           "$RUNNER_TEMP/gitleaks/gitleaks" git . --no-banner --redact --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
 
       - name: Setup Node.js 24
