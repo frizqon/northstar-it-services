@@ -149,6 +149,15 @@ ADMIN_PASSWORD=YourSecurePassword123!
 ADMIN_JWT_SECRET=your-random-32-character-secret-key
 ```
 
+Optional contact-form protection with Cloudflare Turnstile:
+
+```sh
+npx wrangler secret put TURNSTILE_SITE_KEY
+npx wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+The site key is public and is served through `GET /api/config`; the secret key is only used server-side for `siteverify`.
+
 ---
 
 ### 5. Run Local Development Server
@@ -200,6 +209,7 @@ npm run dev
 - **Timing-Safe Auth**: Admin password verification uses constant-time string comparison (`timingSafeEqual`).
 - **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain) and still accepts the legacy cookie name only during migration.
 - **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
+- **Turnstile Contact Protection**: Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker variables/secrets to require a Cloudflare Turnstile challenge on `/api/contact`. When unset, the form falls back to the existing rate limiter.
 - **Strict CSP & Security Headers**: The Worker sets headers for `/api/*`; `public/_headers` applies the same CSP, HSTS, `nosniff`, and `DENY` framing to static HTML and assets.
 - **Canonical Media Extensions**: S3 uploads enforce canonical extensions based on validated MIME types.
 - **Payload Size Limiter**: API endpoints enforce a 1 MB body limit to thwart JSON DoS.

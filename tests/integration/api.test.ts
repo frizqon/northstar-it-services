@@ -59,6 +59,19 @@ describe('Worker Integration: Security Headers & Health', () => {
     expect(data.environment).toBe('development');
   });
 
+  it('GET /api/config should expose only the public Turnstile site key', async () => {
+    const res = await app.request('/api/config', {}, mockEnv);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ turnstileSiteKey: null });
+
+    const withKey = await app.request(
+      '/api/config',
+      {},
+      { ...mockEnv, TURNSTILE_SITE_KEY: 'test-site-key' }
+    );
+    expect(await withKey.json()).toEqual({ turnstileSiteKey: 'test-site-key' });
+  });
+
   it('GET /api/content should return content with short-lived cache header', async () => {
     const res = await app.request('/api/content', {}, mockEnv);
     const data = await res.json();
@@ -273,6 +286,25 @@ describe('Worker Integration: Contact Messages Feature', () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBeDefined();
+  });
+
+  it('POST /api/contact should require a Turnstile token when the secret is configured', async () => {
+    const res = await app.request(
+      '/api/contact',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.0.0.3' },
+        body: JSON.stringify({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          message: 'Interested in cloud and security audit.'
+        })
+      },
+      { ...mockEnv, TURNSTILE_SECRET_KEY: 'test-secret' }
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('security challenge');
   });
 
   it('POST /api/contact should accept valid submission and return 201', async () => {

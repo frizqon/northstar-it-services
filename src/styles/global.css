@@ -384,6 +384,7 @@
 .form-group input,.form-group textarea{background:#0a130f;border:1px solid #23372b;border-radius:3px;padding:12px 14px;color:#ecf0e9;font-size:13px;outline:none;transition:border-color .15s ease,box-shadow .15s ease;width:100%}
 .form-group input:focus,.form-group textarea:focus{border-color:#baf478;box-shadow:0 0 0 2px #baf47829}
 .form-group textarea{resize:vertical;min-height:95px;line-height:1.55}
+.contact-turnstile{display:flex;justify-content:center;min-height:65px}
 .contact-submit-btn{width:100%;justify-content:center;margin-top:6px;padding:14px;font-size:13px}
 .contact-submit-btn:disabled{opacity:.6;cursor:wait}
 .form-alert{padding:11px 15px;border-radius:4px;font-size:12px;margin-bottom:6px}

@@ -4,6 +4,7 @@ import type { WorkerEnv } from './types';
 import { requestContext } from './middleware/requestContext';
 import { securityHeaders } from './middleware/securityHeaders';
 import { healthRouter } from './routes/health';
+import { configRouter } from './routes/config';
 import { authRouter } from './routes/auth';
 import { contentRouter } from './routes/content';
 import { mediaRouter } from './routes/media';
@@ -48,6 +49,7 @@ app.onError((err, c) => {
 
 // Mount API routes
 app.route('/api', healthRouter);
+app.route('/api', configRouter);
 app.route('/api', contentRouter);
 app.route('/api', contactRouter);
 app.route('/api/admin', authRouter);
