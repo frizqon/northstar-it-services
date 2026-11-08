@@ -23,3 +23,8 @@ CF_ACCESS_AUD=YOUR_ACCESS_APPLICATION_AUD
 # Set both values in production; leave blank locally to disable the challenge.
 TURNSTILE_SITE_KEY=YOUR_TURNSTILE_SITE_KEY
 TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET_KEY
+
+# Optional: rebuild static SEO metadata after CMS saves
+# Fine-grained GitHub token with Contents: write for this repository.
+GITHUB_DISPATCH_TOKEN=YOUR_GITHUB_FINE_GRAINED_TOKEN
+GITHUB_REPO=rizqonfah/northstar-it-services
