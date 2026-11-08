@@ -230,4 +230,4 @@ npm run dev
 - **Rotate Secrets**: Secrets can be updated anytime using `wrangler secret put <KEY>`.
 - **Cloudflare Access (Optional)**: Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` secrets to require Cloudflare Zero Trust authentication.
 
-See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for the exact Cloudflare WAF, Turnstile, Access, secret-rotation, and backup/restore steps that require dashboard access.
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for the exact Cloudflare WAF, Turnstile, Access, secret-rotation, and backup/restore steps that require dashboard access. See [`docs/SECRETS.md`](docs/SECRETS.md) for the CLI-first guide to generating, setting, verifying, and rotating every credential.

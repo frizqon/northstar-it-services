@@ -2,6 +2,8 @@
 
 This document covers controls that live outside the repository: Cloudflare dashboard rules, GitHub secrets, Worker secrets, and database recovery. Code-level hardening is documented in `README.md` and enforced by `npm run typecheck`, `npm run test`, and `npm run test:e2e`.
 
+For the full credential inventory, CLI-first generation steps, safe storage commands, and rotation map, see [`SECRETS.md`](./SECRETS.md).
+
 ---
 
 ## 1. Required GitHub Actions secret
