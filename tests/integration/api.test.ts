@@ -164,6 +164,36 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
     expect(setCookie).toContain('Max-Age=43200');
   });
 
+  it('POST /api/admin/logout should clear the development session cookie over HTTP', async () => {
+    const res = await app.request(
+      '/api/admin/logout',
+      { method: 'POST' },
+      mockEnv
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    const setCookie = res.headers.get('Set-Cookie') || '';
+    expect(setCookie).toContain('admin_session=;');
+  });
+
+  it('POST /api/admin/logout should clear both cookie names in production with Secure', async () => {
+    const prodEnv: WorkerEnv['Bindings'] = { ...mockEnv, ENVIRONMENT: 'production' };
+    const res = await app.request(
+      'https://northstar.example/api/admin/logout',
+      { method: 'POST' },
+      prodEnv
+    );
+
+    expect(res.status).toBe(200);
+    const setCookies = res.headers.getSetCookie();
+    const hostCookie = setCookies.find((cookie) => cookie.startsWith('__Host-admin_session='));
+    expect(hostCookie).toBeDefined();
+    expect(hostCookie).toContain('Secure');
+    expect(hostCookie).toContain('Path=/');
+    expect(setCookies.some((cookie) => cookie.startsWith('admin_session='))).toBe(true);
+  });
+
   it('POST /api/admin/login should reject a cross-origin request', async () => {
     const res = await app.request(
       'https://northstar.example/api/admin/login',

@@ -505,7 +505,7 @@
   .admin-brand small{display:none}
   .admin-sidebar nav button{justify-content:center;padding:12px 4px}
   .admin-sidebar nav button .nav-icon{font-size:16px}
-  .sidebar-unread-badge{position:absolute;top:4px;right:4px;margin:0;padding:1px 5px;font-size:9px}
+  .sidebar-unread-badge{position:absolute;top:2px;right:2px;margin:0;padding:0 4px;font-size:8px;line-height:10px}
   .sidebar-bottom{font-size:0;text-align:center}
   .sidebar-bottom a{font-size:0}
   .sidebar-bottom .status-dot{margin:0}
@@ -689,7 +689,7 @@
    THEME TOGGLE & ANTI-SLOP MULTI-THEME SUPPORT (Light, Dark, Auto)
    ========================================================================== */
 .theme-toggle-group{display:inline-flex;align-items:center;padding:2px;background:#0000003b;border:1px solid #ffffff24;border-radius:4px;gap:2px}
-.theme-toggle-btn{background:transparent;border:0;color:#9cad9f;font:600 11px 'DM Mono',monospace;letter-spacing:.05em;padding:5px 9px;border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .12s ease;line-height:1}
+.theme-toggle-btn{background:transparent;border:0;color:#9cad9f;font:600 11px 'DM Mono',monospace;letter-spacing:.05em;padding:5px 9px;border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .12s ease;line-height:1;min-height:24px}
 .theme-toggle-btn:hover{color:#ecf0e9;background:#ffffff14}
 .theme-toggle-btn.active{background:#baf478;color:#0c1514;font-weight:700}
 .theme-icon{font-size:12px;line-height:1}
