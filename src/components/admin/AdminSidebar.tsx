@@ -35,9 +35,11 @@ export function AdminSidebar({ activeTab, onSelectTab, unreadCount = 0 }: AdminS
             key={item.name}
             type="button"
             class={activeTab === item.name ? 'active' : ''}
+            title={item.name}
+            aria-label={item.name}
             onClick={() => onSelectTab(item.name, item.id)}
           >
-            <span aria-hidden="true">{item.icon}</span>
+            <span class="nav-icon" aria-hidden="true">{item.icon}</span>
             <span class="nav-text">{item.name}</span>
             {item.id === 'messages' && unreadCount > 0 && (
               <span class="sidebar-unread-badge" title={`${unreadCount} unread message(s)`}>
