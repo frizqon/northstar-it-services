@@ -219,7 +219,7 @@ npm run dev
 - **Host Header Spoofing Protected**: Environment mode strictly relies on explicit `ENVIRONMENT` binding (`wrangler.toml` enforces `production`).
 - **Timing-Safe Auth**: Admin password verification uses constant-time string comparison (`timingSafeEqual`).
 - **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain). The legacy `admin_session` cookie is no longer accepted.
-- **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
+- **Rate Limiting**: `/api/admin/login` uses a Cloudflare Rate Limiting binding (10 requests/minute per IP per Cloudflare location) plus a local 5-failed-attempts per 15-minute window. Add a zone WAF rate limiting rule for strict account-wide enforcement.
 - **Turnstile Contact Protection**: Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker variables/secrets to require a Cloudflare Turnstile challenge on `/api/contact`. When unset, the form falls back to the existing rate limiter.
 - **CMS Rebuild Hook**: Set `GITHUB_DISPATCH_TOKEN` and `GITHUB_REPO` to trigger a `repository_dispatch` rebuild after each CMS save. This keeps build-time SEO metadata, OpenGraph tags, and the static HTML shell in sync with Neon content.
 - **Strict CSP & Security Headers**: The Worker sets headers for `/api/*`; `public/_headers` applies the same CSP, HSTS, `nosniff`, and `DENY` framing to static HTML and assets.

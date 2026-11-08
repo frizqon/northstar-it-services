@@ -208,6 +208,31 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
     expect(res.status).toBe(401);
   });
 
+  it('POST /api/admin/login should reject requests denied by the global rate limiter', async () => {
+    const env: WorkerEnv['Bindings'] = {
+      ...mockEnv,
+      LOGIN_RATE_LIMITER: {
+        limit: async () => ({ success: false })
+      }
+    };
+
+    const res = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.106'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      env
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('60');
+  });
+
   it('POST /api/admin/login should trigger 429 Too Many Requests after 5 consecutive failures', async () => {
     const ip = '192.168.1.99';
 

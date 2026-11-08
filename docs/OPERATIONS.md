@@ -45,20 +45,24 @@ The Worker triggers a `cms-content-updated` repository dispatch after each CMS s
 ## 3. Turnstile
 
 1. In the Cloudflare dashboard, open **Turnstile** and add a widget.
-2. Add the production hostname. The current hostname is `northstar-it-services.frizqon.workers.dev`.
+2. Add the production hostname. The current hostname is `it.erfah.my.id`.
 3. Copy the site key and secret key into the Worker secrets above.
 4. Open the public site, submit the contact form, and confirm the challenge appears and the message is stored.
 5. Remove the keys to disable the challenge without redeploying.
 
-Turnstile does not require a custom domain. It works on `workers.dev`.
+Turnstile does not require a custom domain. It also works on `workers.dev`.
 
 ---
 
-## 4. WAF rate limiting and Cloudflare Access
+## 4. Rate limiting and Cloudflare Access
 
-The current production hostname is `*.workers.dev`. Zone-level WAF rate limiting rules and Cloudflare Access policies require a custom domain attached to a Cloudflare zone you control. Add a custom domain to the Worker before configuring these controls.
+Production runs on `it.erfah.my.id`. The Worker includes a Cloudflare Rate Limiting binding for admin login:
 
-Recommended WAF rate limiting rules once a custom domain is active:
+- Binding: `LOGIN_RATE_LIMITER`
+- Limit: 10 requests per 60 seconds per IP, per Cloudflare location
+- The in-isolate limiter still enforces 5 failed attempts per 15 minutes and is the fallback when the binding is unavailable.
+
+The binding is enforced across isolates in each location but is not a strict global counter. For stricter zone-wide enforcement, add WAF rate limiting rules:
 
 | Rule | Expression | Threshold | Action |
 | --- | --- | --- | --- |
@@ -66,11 +70,9 @@ Recommended WAF rate limiting rules once a custom domain is active:
 | Admin login | `http.request.uri.path eq "/api/admin/login" and http.request.method eq "POST"` | 5 requests / 15 minutes per IP | Block |
 | Admin API | `starts_with(http.request.uri.path, "/api/admin/")` | 60 requests / minute per IP | Managed Challenge |
 
-The Worker also keeps an in-isolate limiter as a fallback. WAF rules provide global enforcement across isolates.
-
 Recommended Cloudflare Access policy:
 
-- Application: the custom domain paths `/admin/*` and `/api/admin/*`.
+- Application: `it.erfah.my.id` paths `/admin/*` and `/api/admin/*`.
 - Allow: your email address or identity provider group.
 - Session duration: 12 hours or less.
 - Require MFA at the identity provider.

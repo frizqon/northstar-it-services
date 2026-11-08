@@ -6,7 +6,7 @@ Work items derived from the senior code review. Keep this list current as items 
 
 - [x] Escape JSON-LD before `set:html` in `BaseLayout.astro`.
 - [x] Make `isLocalDev()` fail closed; require `ENVIRONMENT === 'development'`.
-- [ ] Add global login rate limiting (Cloudflare WAF rule or Rate Limiting binding / Durable Object). Blocked on a custom domain or binding configuration; see `docs/OPERATIONS.md` §4. The Worker keeps the per-isolate limiter as a fallback.
+- [x] Add global login rate limiting (Cloudflare Rate Limiting binding `LOGIN_RATE_LIMITER` plus the per-isolate failed-attempt limiter). The binding is per Cloudflare location; add a zone WAF rule for stricter account-wide enforcement. See `docs/OPERATIONS.md` §4.
 
 ## P2 — Correctness & hardening
 

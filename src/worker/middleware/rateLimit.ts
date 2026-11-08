@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import type { WorkerEnv } from '../types';
+import { logError } from '../lib/log';
 
 interface AttemptRecord {
   count: number;
@@ -16,8 +17,9 @@ const contactAttempts = new Map<string, { count: number; firstAttemptAt: number 
 const MAX_CONTACT_ATTEMPTS = 5;
 const CONTACT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
-// Per-isolate safety valve. For global rate limiting across all Cloudflare
-// isolates, configure a Cloudflare Rate Limiting rule or a Durable Object.
+// Per-isolate failure tracking. The LOGIN_RATE_LIMITER binding enforces the
+// coarse limit across isolates in each Cloudflare location; use a WAF rule for
+// strict account-wide enforcement.
 const MAX_TRACKED_ENTRIES = 5000;
 
 function pruneExpiredEntries<T extends { firstAttemptAt: number }>(
@@ -72,6 +74,25 @@ export const loginRateLimiter: MiddlewareHandler<WorkerEnv> = async (c, next) =>
       },
       429
     );
+  }
+
+  // Cloudflare's Rate Limiting binding enforces the limit across isolates in
+  // each Cloudflare location. It counts every login request, so the local
+  // failure-only limiter above remains the precise 5-failed-attempts gate.
+  if (c.env.LOGIN_RATE_LIMITER) {
+    try {
+      const globalLimit = await c.env.LOGIN_RATE_LIMITER.limit({ key: `login:${ip}` });
+      if (!globalLimit.success) {
+        c.header('Retry-After', '60');
+        return c.json(
+          { error: 'Too many login attempts. Please try again in a minute.' },
+          429
+        );
+      }
+    } catch (error) {
+      // Keep the local limiter active if the platform binding is unavailable.
+      logError('login_rate_limit_binding_failed', error);
+    }
   }
 
   await next();
