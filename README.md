@@ -6,7 +6,7 @@ Modern IT services landing page with an integrated Preact Content Studio (CMS), 
 
 ## Architecture & Stack
 
-- **Frontend**: Astro static site with Preact islands. Default content is rendered at build time; CMS content hydrates from `/api/content`.
+- **Frontend**: Astro static site with Preact islands. When `DATABASE_URL` is available at build time, current CMS content is baked into the static HTML; otherwise `DEFAULT_CONTENT` is rendered and the browser hydrates from `/api/content`.
 - **CMS Studio**: Preact single-page application at `/admin/` with tabbed form editors and a contact inbox.
 - **Backend / API**: Hono framework running on Cloudflare Workers (`/api/*`).
 - **Database**: Neon Serverless Postgres (`site_content` singleton JSONB schema).
@@ -158,6 +158,17 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 
 The site key is public and is served through `GET /api/config`; the secret key is only used server-side for `siteverify`.
 
+Optional automatic rebuild after CMS saves:
+
+```sh
+npx wrangler secret put GITHUB_DISPATCH_TOKEN
+npx wrangler secret put GITHUB_REPO
+```
+
+`GITHUB_DISPATCH_TOKEN` must be a fine-grained GitHub token with `Contents: write` for this repository. `GITHUB_REPO` is `rizqonfah/northstar-it-services`. The Worker sends a `cms-content-updated` repository dispatch, which reruns the deploy workflow.
+
+The deploy workflow also passes the `DATABASE_URL` GitHub Actions secret to `npm run build`. When present, Astro fetches the current CMS row and bakes it into the static HTML, so `<title>`, meta description, OpenGraph tags, and JSON-LD stay current. Without the secret, builds fall back to `DEFAULT_CONTENT` and the browser hydrates from `/api/content`.
+
 ---
 
 ### 5. Run Local Development Server
@@ -210,6 +221,7 @@ npm run dev
 - **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain) and still accepts the legacy cookie name only during migration.
 - **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
 - **Turnstile Contact Protection**: Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker variables/secrets to require a Cloudflare Turnstile challenge on `/api/contact`. When unset, the form falls back to the existing rate limiter.
+- **CMS Rebuild Hook**: Set `GITHUB_DISPATCH_TOKEN` and `GITHUB_REPO` to trigger a `repository_dispatch` rebuild after each CMS save. This keeps build-time SEO metadata, OpenGraph tags, and the static HTML shell in sync with Neon content.
 - **Strict CSP & Security Headers**: The Worker sets headers for `/api/*`; `public/_headers` applies the same CSP, HSTS, `nosniff`, and `DENY` framing to static HTML and assets.
 - **Canonical Media Extensions**: S3 uploads enforce canonical extensions based on validated MIME types.
 - **Payload Size Limiter**: API endpoints enforce a 1 MB body limit to thwart JSON DoS.

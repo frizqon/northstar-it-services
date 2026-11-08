@@ -3,6 +3,7 @@ import type { WorkerEnv } from '../types';
 import { verifyAdmin } from '../middleware/auth';
 import { isLocalDev, isSafeOrigin } from '../lib/security';
 import { getSiteContent, saveSiteContent, validateSiteContent } from '../lib/db';
+import { triggerContentRebuild } from '../lib/rebuild';
 import type { SiteContent } from '../../content/default';
 
 export const contentRouter = new Hono<WorkerEnv>();
@@ -54,7 +55,16 @@ contentRouter.put('/admin/content', verifyAdmin, async (c) => {
 
   try {
     await saveSiteContent(c.env, payload as SiteContent, isLocal);
-    return c.json({ ok: true, updatedAt: new Date().toISOString() });
+    const updatedAt = new Date().toISOString();
+    const rebuild = triggerContentRebuild(c.env, updatedAt);
+
+    try {
+      c.executionCtx.waitUntil(rebuild);
+    } catch {
+      await rebuild;
+    }
+
+    return c.json({ ok: true, updatedAt });
   } catch (error) {
     console.error('Save content failed', error);
     return c.json({ error: 'Could not save content' }, 500);

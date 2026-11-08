@@ -8,8 +8,12 @@ import { AboutSection } from './landing/AboutSection';
 import { ContactSection } from './landing/ContactSection';
 import { Footer } from './landing/Footer';
 
-export default function LandingPage() {
-  const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
+interface LandingPageProps {
+  initialContent?: SiteContent;
+}
+
+export default function LandingPage({ initialContent = DEFAULT_CONTENT }: LandingPageProps) {
+  const [content, setContent] = useState<SiteContent>(initialContent);
 
   useEffect(() => {
     fetch('/api/content', { cache: 'no-store' })

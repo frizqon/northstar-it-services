@@ -1,9 +1,27 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import LandingPage from '../components/LandingPage';
-import { DEFAULT_CONTENT } from '../content/default';
+import { DEFAULT_CONTENT, type SiteContent } from '../content/default';
+import { getSiteContent } from '../worker/lib/db';
+import type { WorkerEnv } from '../worker/types';
 
-const { seo } = DEFAULT_CONTENT;
+let content: SiteContent = DEFAULT_CONTENT;
+
+// Bake CMS content into the static HTML when a database URL is available at
+// build time. Without it, the client still hydrates from /api/content.
+if (process.env.DATABASE_URL) {
+  try {
+    const result = await getSiteContent(
+      { DATABASE_URL: process.env.DATABASE_URL } as WorkerEnv['Bindings'],
+      false
+    );
+    content = result.content;
+  } catch (error) {
+    console.warn('Build-time content fetch failed; using default content.', error);
+  }
+}
+
+const { seo } = content;
 ---
 
 <BaseLayout
@@ -11,5 +29,5 @@ const { seo } = DEFAULT_CONTENT;
   description={seo.description}
   themeColor="#0c1514"
 >
-  <LandingPage client:load />
+  <LandingPage initialContent={content} client:load />
 </BaseLayout>

@@ -13,6 +13,8 @@ export type WorkerEnv = {
     CF_ACCESS_AUD?: string;
     TURNSTILE_SITE_KEY?: string;
     TURNSTILE_SECRET_KEY?: string;
+    GITHUB_DISPATCH_TOKEN?: string;
+    GITHUB_REPO?: string;
     AWS_ENDPOINT_URL_S3?: string;
     AWS_REGION?: string;
     AWS_ACCESS_KEY_ID?: string;
