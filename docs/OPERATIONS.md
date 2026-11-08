@@ -120,3 +120,35 @@ Test the restore path at least quarterly.
 - Client reports can quote the `X-Request-Id` response header.
 - Enable Cloudflare Workers Logs and alert on sustained 5xx responses, `unhandled_error` events, and `turnstile_failed` spikes.
 - Alert on repeated `cms_rebuild_dispatch_failed` events so CMS saves do not silently stop rebuilding the static site.
+
+---
+
+## 8. PR checks and CI notifications
+
+The CI workflow runs `typecheck`, unit and integration tests, build, and Playwright E2E for every pull request targeting `main` or `dev`. The required check name is:
+
+```text
+Typecheck, Test, Build & E2E
+```
+
+For pull requests targeting `main`, CI sends a Telegram message on completion:
+
+- `CI PASSED` or `CI FAILED`
+- PR number and title
+- Actor
+- Short commit SHA
+- Links to the workflow run and pull request
+
+Notification uses the existing `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` repository secrets. If either secret is missing, the notification step logs a skip message and does not fail CI.
+
+### Required status check limitation
+
+This repository is private on the GitHub Free plan. GitHub branch protection and repository rulesets return HTTP 403 on this plan, so the merge button cannot be hard-blocked by a required status check yet. To enforce merge blocking:
+
+1. Upgrade the repository owner to GitHub Pro, or make the repository public.
+2. Open **Settings → Branches → Add branch protection rule** for `main`.
+3. Enable **Require status checks to pass before merging**.
+4. Select **`Typecheck, Test, Build & E2E`**.
+5. Enable **Require branches to be up to date before merging**.
+
+Until then, the deploy workflow is the final gate: it reruns `typecheck`, `test`, and `build` on `main` before deploying. A failing test prevents deployment and sends a deploy failure notification.
