@@ -125,9 +125,9 @@ gh pr create --base main --head dev --title "Release: Fitur XYZ" --body "Rangkum
 ### Langkah 6: Review dan Merge PR
 
 > [!IMPORTANT]
-> PR ke `main` wajib lulus check **`Typecheck, Test, Build & E2E`** sebelum merge. CI mengirim notifikasi Telegram saat check selesai (pass/fail) khusus untuk PR yang menargetkan `main`.
+> PR ke `main` wajib lulus check **`Typecheck, Test, Build & E2E`** sebelum merge. Branch protection `main` sudah aktif: PR wajib, check wajib lulus, branch harus up to date, dan aturan berlaku untuk admin.
 >
-> Repositori ini private dan plan GitHub Free belum mendukung branch protection/ruleset. Untuk memblokir tombol merge secara otomatis, upgrade ke GitHub Pro atau ubah repositori menjadi public, lalu aktifkan required status check **`Typecheck, Test, Build & E2E`**.
+> CI mengirim notifikasi Telegram saat check selesai (pass/fail) khusus untuk PR yang menargetkan `main`.
 >
 > Deploy workflow tetap menjalankan `typecheck`, `test`, `build`, lalu `deploy`. Jika test gagal, deploy tidak berjalan dan notifikasi deploy gagal dikirim.
 
