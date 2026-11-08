@@ -9,7 +9,7 @@ This document covers controls that live outside the repository: Cloudflare dashb
 The deploy workflow runs migrations and bakes CMS content into the static build only when `DATABASE_URL` is configured.
 
 ```sh
-gh secret set DATABASE_URL --repo rizqonfah/northstar-it-services
+gh secret set DATABASE_URL --repo frizqon/northstar-it-services
 ```
 
 Paste the production Neon connection string when prompted. Never commit it, echo it, or paste it into an issue.
@@ -34,7 +34,7 @@ npx wrangler secret put GITHUB_DISPATCH_TOKEN
 npx wrangler secret put GITHUB_REPO
 ```
 
-`GITHUB_DISPATCH_TOKEN` must be a fine-grained GitHub token scoped to `rizqonfah/northstar-it-services` with `Contents: write`. `GITHUB_REPO` is `rizqonfah/northstar-it-services`.
+`GITHUB_DISPATCH_TOKEN` must be a fine-grained GitHub token scoped to `frizqon/northstar-it-services` with `Contents: write`. `GITHUB_REPO` is `frizqon/northstar-it-services`.
 
 The Worker triggers a `cms-content-updated` repository dispatch after each CMS save. The deploy workflow listens for that event and rebuilds the static site.
 
@@ -86,7 +86,7 @@ npx wrangler secret put CF_ACCESS_AUD
 
 1. Create the replacement credential in the provider dashboard.
 2. Update the Worker secret with `npx wrangler secret put <KEY>`.
-3. Update the GitHub Actions secret with `gh secret set <KEY> --repo rizqonfah/northstar-it-services`.
+3. Update the GitHub Actions secret with `gh secret set <KEY> --repo frizqon/northstar-it-services`.
 4. Deploy or rerun the deploy workflow.
 5. Revoke the old credential after the new deployment is healthy.
 

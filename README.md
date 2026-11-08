@@ -75,7 +75,7 @@ Ensure you have the required CLI tools installed and authenticated on your machi
 ### 1. Clone & Install Dependencies
 
 ```sh
-git clone git@github.com:rizqonfah/northstar-it-services.git
+git clone git@github.com:frizqon/northstar-it-services.git
 cd northstar-it-services
 npm install
 ```
@@ -165,7 +165,7 @@ npx wrangler secret put GITHUB_DISPATCH_TOKEN
 npx wrangler secret put GITHUB_REPO
 ```
 
-`GITHUB_DISPATCH_TOKEN` must be a fine-grained GitHub token with `Contents: write` for this repository. `GITHUB_REPO` is `rizqonfah/northstar-it-services`. The Worker sends a `cms-content-updated` repository dispatch, which reruns the deploy workflow.
+`GITHUB_DISPATCH_TOKEN` must be a fine-grained GitHub token with `Contents: write` for this repository. `GITHUB_REPO` is `frizqon/northstar-it-services`. The Worker sends a `cms-content-updated` repository dispatch, which reruns the deploy workflow.
 
 The deploy workflow also passes the `DATABASE_URL` GitHub Actions secret to `npm run build`. When present, Astro fetches the current CMS row and bakes it into the static HTML, so `<title>`, meta description, OpenGraph tags, and JSON-LD stay current. Without the secret, builds fall back to `DEFAULT_CONTENT` and the browser hydrates from `/api/content`.
 

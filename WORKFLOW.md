@@ -113,7 +113,7 @@ gh pr create --base main --head dev --title "Release: Fitur XYZ" --body "Rangkum
 ```
 
 #### Opsi B: Menggunakan Web GitHub
-1. Buka repositori: [github.com/rizqonfah/northstar-it-services](https://github.com/rizqonfah/northstar-it-services)
+1. Buka repositori: [github.com/frizqon/northstar-it-services](https://github.com/frizqon/northstar-it-services)
 2. Klik tombol **Compare & pull request** untuk cabang `dev`.
 3. Pastikan:
    - **base**: `main`
