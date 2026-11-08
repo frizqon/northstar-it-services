@@ -27,7 +27,7 @@
     "@aws-sdk/s3-presigned-post": "^3.1164.0",
     "@neondatabase/serverless": "^1.0.2",
     "astro": "^7.4.7",
-    "hono": "^4.9.8",
+    "hono": "^4.13.17",
     "jose": "^6.1.0",
     "preact": "^11.2.0"
   },
