@@ -141,14 +141,21 @@ For pull requests targeting `main`, CI sends a Telegram message on completion:
 
 Notification uses the existing `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` repository secrets. If either secret is missing, the notification step logs a skip message and does not fail CI.
 
-### Required status check limitation
+### Required status check
 
-This repository is private on the GitHub Free plan. GitHub branch protection and repository rulesets return HTTP 403 on this plan, so the merge button cannot be hard-blocked by a required status check yet. To enforce merge blocking:
+Branch protection is enabled for `main` on the public repository:
 
-1. Upgrade the repository owner to GitHub Pro, or make the repository public.
-2. Open **Settings → Branches → Add branch protection rule** for `main`.
-3. Enable **Require status checks to pass before merging**.
-4. Select **`Typecheck, Test, Build & E2E`**.
-5. Enable **Require branches to be up to date before merging**.
+- Pull request required before merging.
+- Required check: **`Typecheck, Test, Build & E2E`**.
+- Branches must be up to date before merging.
+- Rules apply to administrators.
+- Force pushes and branch deletion are blocked.
 
-Until then, the deploy workflow is the final gate: it reruns `typecheck`, `test`, and `build` on `main` before deploying. A failing test prevents deployment and sends a deploy failure notification.
+To inspect or change the rule:
+
+1. Open **Settings → Branches → Branch protection rules** for `main`.
+2. Confirm **Require a pull request before merging** is enabled.
+3. Confirm **Require status checks to pass before merging** includes **`Typecheck, Test, Build & E2E`**.
+4. Keep **Require branches to be up to date before merging** enabled.
+
+The deploy workflow remains the final gate: it reruns `typecheck`, `test`, and `build` on `main` before deploying. A failing test prevents deployment and sends a deploy failure notification.
