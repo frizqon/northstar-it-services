@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { securityHeaders } from '../../src/worker/middleware/securityHeaders';
 import type { WorkerEnv } from '../../src/worker/types';
@@ -45,5 +46,25 @@ describe('Security headers middleware', () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("worker-src 'self'");
     expect(csp).toContain("manifest-src 'self'");
+  });
+
+  it('should keep the static _headers CSP in sync with the middleware CSP', async () => {
+    const app = new Hono<WorkerEnv>();
+    app.use('*', securityHeaders);
+    app.get('/ok', (c) => c.text('ok'));
+
+    const res = await app.request('/ok', {}, env);
+    const middlewareCsp = res.headers.get('Content-Security-Policy') || '';
+
+    const staticHeaders = readFileSync(new URL('../../public/_headers', import.meta.url), 'utf8');
+    const staticCsp =
+      staticHeaders
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.toLowerCase().startsWith('content-security-policy:'))
+        ?.slice('content-security-policy:'.length)
+        .trim() || '';
+
+    expect(staticCsp.replace(/\s+/g, ' ')).toBe(middlewareCsp.replace(/\s+/g, ' '));
   });
 });
