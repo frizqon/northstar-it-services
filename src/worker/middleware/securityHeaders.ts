@@ -19,7 +19,7 @@ function applySecurityHeaders(c: Context<WorkerEnv>): void {
     "img-src 'self' data: https: blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
     // Direct-to-object-storage uploads use a presigned URL, so connect-src
     // must allow the configured S3-compatible endpoint. Keep the scheme broad
     // rather than hard-coding a provider host.

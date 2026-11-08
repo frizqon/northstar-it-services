@@ -60,7 +60,10 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
           theme: 'auto',
           callback: (token) => setTurnstileToken(token),
           'expired-callback': () => setTurnstileToken(''),
-          'error-callback': () => setTurnstileToken('')
+          'error-callback': () => {
+            setTurnstileToken('');
+            setErrorMessage('Security challenge could not load. Please refresh the page and try again.');
+          }
         });
       })
       .catch(() => {
