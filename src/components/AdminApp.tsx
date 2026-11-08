@@ -243,8 +243,24 @@ export default function AdminApp() {
         throw new Error('Upload failed. Check bucket CORS settings.');
       }
 
+      const confirmation = await fetch('/api/admin/media/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: ticket.key })
+      });
+
+      if (confirmation.status === 401) {
+        setAuthenticated(false);
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      const verified = await confirmation.json();
+      if (!confirmation.ok) {
+        throw new Error(verified.error || 'Image verification failed.');
+      }
+
       update((d) => {
-        d.projects[index].imageUrl = ticket.publicUrl;
+        d.projects[index].imageUrl = verified.publicUrl;
       });
       showNotice('Image uploaded. Save changes to publish it on the website.');
     } catch (error) {
