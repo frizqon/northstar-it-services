@@ -43,7 +43,7 @@ export function ContactSection({ contact }: ContactSectionProps): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!turnstileSiteKey || status !== 'idle' || !turnstileContainer.current) {
+    if (!turnstileSiteKey || status === 'success' || !turnstileContainer.current) {
       return;
     }
 
