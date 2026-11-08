@@ -38,6 +38,10 @@ export type PresignInput = {
   size?: number;
 };
 
+export type ConfirmMediaInput = {
+  key?: string;
+};
+
 export type MessageStatus = 'unread' | 'read' | 'replied';
 
 export type ContactMessage = {

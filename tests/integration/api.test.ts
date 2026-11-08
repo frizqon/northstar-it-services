@@ -272,6 +272,79 @@ describe('Worker Integration: Content Mutation & DoS Protection', () => {
   });
 });
 
+describe('Worker Integration: Media Upload Verification', () => {
+  const validKey = 'projects/123e4567-e89b-42d3-a456-426614174000-photo.jpg';
+
+  async function loginAsAdmin(ip: string): Promise<string> {
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+        body: JSON.stringify({ username: 'admin', password: 'REDACTED' })
+      },
+      mockEnv
+    );
+
+    const cookieHeader = loginRes.headers.get('Set-Cookie') || '';
+    return cookieHeader.split(';')[0];
+  }
+
+  it('POST /api/admin/media/confirm should reject unauthenticated requests with 401', async () => {
+    const res = await app.request(
+      '/api/admin/media/confirm',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: validKey })
+      },
+      mockEnv
+    );
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/admin/media/confirm should reject malformed keys with 400', async () => {
+    const sessionToken = await loginAsAdmin('192.168.1.210');
+    const res = await app.request(
+      'https://northstar.example/api/admin/media/confirm',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ key: '../photo.jpg' })
+      },
+      mockEnv
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'Invalid media key' });
+  });
+
+  it('POST /api/admin/media/confirm should return 503 when storage is not configured', async () => {
+    const sessionToken = await loginAsAdmin('192.168.1.211');
+    const res = await app.request(
+      'https://northstar.example/api/admin/media/confirm',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://northstar.example',
+          Cookie: sessionToken
+        },
+        body: JSON.stringify({ key: validKey })
+      },
+      mockEnv
+    );
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'Object Storage is not configured' });
+  });
+});
+
 describe('Worker Integration: Contact Messages Feature', () => {
   it('POST /api/contact should reject invalid submission with 400', async () => {
     const res = await app.request(
