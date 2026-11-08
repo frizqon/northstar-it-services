@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { WorkerEnv } from './types';
+import { requestContext } from './middleware/requestContext';
 import { securityHeaders } from './middleware/securityHeaders';
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
@@ -9,6 +10,9 @@ import { mediaRouter } from './routes/media';
 import { contactRouter } from './routes/contact';
 
 const app = new Hono<WorkerEnv>();
+
+// Request correlation ID for logs and support reports
+app.use('*', requestContext);
 
 // Global security headers
 app.use('*', securityHeaders);
@@ -24,10 +28,19 @@ app.use(
 
 // Centralized error handling to prevent sensitive stack trace leaks in production
 app.onError((err, c) => {
-  console.error('Unhandled worker error:', err);
+  console.error(
+    JSON.stringify({
+      event: 'unhandled_error',
+      requestId: c.get('requestId'),
+      method: c.req.method,
+      path: c.req.path,
+      error: err instanceof Error ? err.message : String(err)
+    })
+  );
   return c.json(
     {
-      error: 'An internal server error occurred'
+      error: 'An internal server error occurred',
+      requestId: c.get('requestId')
     },
     500
   );

@@ -22,6 +22,7 @@ Modern IT services landing page with an integrated Preact Content Studio (CMS), 
 ├── .github/
 │   ├── scripts/             # Deployment notification scripts (Email & Telegram)
 │   └── workflows/           # GitHub Actions CI/CD (Typecheck -> Test -> Build -> Deploy)
+├── db/migrations/           # Versioned, tracked database migrations (dbmate)
 ├── public/                  # Static assets (robots.txt, favicon.svg)
 ├── src/
 │   ├── components/
@@ -96,13 +97,19 @@ neonctl projects create --name northstar-it-services --region-id aws-ap-southeas
 neonctl connection-string --pooled
 ```
 
-Apply the full schema from `schema.sql` (site content + contact messages + indexes) via `neonctl` (or `psql`):
+Apply database migrations with `dbmate` (tracked in `db/migrations/`):
 
 ```sh
-neonctl sql "$(cat schema.sql)"
+# Set the database URL for the target branch
+export DATABASE_URL="postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require"
+
+npm run db:migrate
+npm run db:status
 ```
 
-The Worker no longer creates or alters tables at runtime. Run the schema before deploying the contact inbox feature.
+Migrations are transactional, tracked in `schema_migrations`, and run automatically during production deploys when the `DATABASE_URL` GitHub Actions secret is configured. The Worker never creates or alters tables at runtime.
+
+For a manual bootstrap only, `schema.sql` contains the full current schema. Do not run it and the migrations on the same empty database unless you intentionally want the idempotent checks to no-op.
 
 ---
 
@@ -167,6 +174,10 @@ npm run dev
 | `npm run test` | Run all unit and integration tests via Vitest |
 | `npm run test:watch` | Run Vitest in interactive watch mode |
 | `npm run test:e2e` | Run browser E2E test suite via Playwright |
+| `npm run db:migrate` | Apply pending database migrations with `dbmate` |
+| `npm run db:status` | Show applied and pending migrations |
+| `npm run db:rollback` | Roll back the most recent migration |
+| `npm run db:new <name>` | Create a new timestamped migration file |
 | `npm run deploy` | Build and deploy directly to Cloudflare Workers |
 
 ---
@@ -187,6 +198,7 @@ npm run dev
 
 - **Host Header Spoofing Protected**: Environment mode strictly relies on explicit `ENVIRONMENT` binding (`wrangler.toml` enforces `production`).
 - **Timing-Safe Auth**: Admin password verification uses constant-time string comparison (`timingSafeEqual`).
+- **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain) and still accepts the legacy cookie name only during migration.
 - **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
 - **Strict CSP & Security Headers**: The Worker sets headers for `/api/*`; `public/_headers` applies the same CSP, HSTS, `nosniff`, and `DENY` framing to static HTML and assets.
 - **Canonical Media Extensions**: S3 uploads enforce canonical extensions based on validated MIME types.

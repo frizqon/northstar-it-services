@@ -19,6 +19,7 @@ export type WorkerEnv = {
   };
   Variables: {
     adminUser?: string;
+    requestId?: string;
   };
 };
 

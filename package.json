@@ -13,7 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:migrate": "dbmate --migrations-dir db/migrations --schema-file schema.sql up",
+    "db:rollback": "dbmate --migrations-dir db/migrations --schema-file schema.sql down",
+    "db:status": "dbmate --migrations-dir db/migrations --schema-file schema.sql status",
+    "db:new": "dbmate --migrations-dir db/migrations --schema-file schema.sql new"
   },
   "dependencies": {
     "@astrojs/preact": "^6.1.2",
@@ -29,6 +33,7 @@
   "devDependencies": {
     "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
+    "dbmate": "^2.37.0",
     "typescript": "^5.9.2",
     "vitest": "^5.1.0",
     "wrangler": "^4.38.0"

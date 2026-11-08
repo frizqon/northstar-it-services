@@ -1,6 +1,18 @@
 import type { Context } from 'hono';
 import type { WorkerEnv } from '../types';
 
+export const ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
+export const ADMIN_SESSION_COOKIE = 'admin_session';
+export const ADMIN_SESSION_COOKIE_PROD = '__Host-admin_session';
+
+/**
+ * Production uses the __Host- cookie prefix so the browser only sends the
+ * session to the exact origin over HTTPS, with Path=/ and no Domain attribute.
+ */
+export function getAdminSessionCookieName(c: Context<WorkerEnv>): string {
+  return c.env.ENVIRONMENT === 'production' ? ADMIN_SESSION_COOKIE_PROD : ADMIN_SESSION_COOKIE;
+}
+
 /**
  * Constant-time string comparison to defend against side-channel timing attacks.
  */

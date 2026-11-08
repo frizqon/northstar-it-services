@@ -4,7 +4,14 @@ import { SignJWT } from 'jose';
 import type { WorkerEnv } from '../types';
 import { checkAdminAuth } from '../middleware/auth';
 import { loginRateLimiter } from '../middleware/rateLimit';
-import { isLocalDev, timingSafeEqual } from '../lib/security';
+import {
+  ADMIN_SESSION_COOKIE,
+  ADMIN_SESSION_COOKIE_PROD,
+  ADMIN_SESSION_TTL_SECONDS,
+  getAdminSessionCookieName,
+  isLocalDev,
+  timingSafeEqual
+} from '../lib/security';
 
 export const authRouter = new Hono<WorkerEnv>();
 
@@ -57,23 +64,32 @@ authRouter.post('/login', loginRateLimiter, async (c) => {
   const token = await new SignJWT({ user: expectedUser, role: 'admin' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(`${ADMIN_SESSION_TTL_SECONDS}s`)
     .sign(jwtSecret);
 
   const isHttps = c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https';
   const isSecure = isHttps || c.env.ENVIRONMENT === 'production';
-  setCookie(c, 'admin_session', token, {
+  setCookie(c, getAdminSessionCookieName(c), token, {
     path: '/',
     httpOnly: true,
     secure: isSecure,
     sameSite: 'Lax',
-    maxAge: 7 * 24 * 3600
+    maxAge: ADMIN_SESSION_TTL_SECONDS
   });
 
   return c.json({ ok: true, user: { username: expectedUser } });
 });
 
 authRouter.post('/logout', (c) => {
-  deleteCookie(c, 'admin_session', { path: '/' });
+  // Delete both names so sessions survive the migration to __Host- cookies.
+  const isSecure = c.env.ENVIRONMENT === 'production';
+  const cookieOptions = {
+    path: '/',
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'Lax' as const
+  };
+  deleteCookie(c, ADMIN_SESSION_COOKIE_PROD, cookieOptions);
+  deleteCookie(c, ADMIN_SESSION_COOKIE, cookieOptions);
   return c.json({ ok: true });
 });
