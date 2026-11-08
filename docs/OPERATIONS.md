@@ -168,15 +168,14 @@ The deploy workflow remains the final gate: it reruns `typecheck`, `test`, and `
 
 ## 9. Contact message retention
 
-`contact_messages` contains personal data (name, email, free-form message). Define and enforce a retention window before the inbox grows indefinitely.
+`contact_messages` contains personal data (name, email, free-form message). The Worker enforces the retention window automatically:
 
-Recommended policy:
+- Replied messages are deleted 6 months after `replied_at`.
+- Unread and read messages are deleted 12 months after `created_at`.
+- The scheduled handler runs daily at 03:00 UTC (`[triggers] crons = ["0 3 * * *"]` in `wrangler.toml`) and deletes in batches of 1,000, up to 10 batches per run.
+- Logs emit `contact_retention_completed` with the deleted count, or `contact_retention_failed` on error.
 
-- Keep unresolved (`unread` / `read`) messages for 12 months.
-- Keep `replied` messages for 6 months after `replied_at`.
-- Delete or anonymize rows older than the window on a monthly schedule.
-
-There is no automated job yet. Run a reviewed query against a Neon branch first:
+To review what will be removed before a run, execute this against a Neon branch:
 
 ```sql
 SELECT id, created_at, status, replied_at
@@ -186,4 +185,4 @@ WHERE (status = 'replied' AND replied_at < now() - interval '6 months')
 ORDER BY created_at;
 ```
 
-After review, delete by id in small batches. Export an encrypted backup first if the data may be needed for legal or accounting reasons.
+Export an encrypted backup first if the data may be needed for legal or accounting reasons. To test the handler locally, run `wrangler dev --test-scheduled` and call `curl "http://127.0.0.1:8787/cdn-cgi/local/scheduled"`.

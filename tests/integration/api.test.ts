@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it, expect } from 'vitest';
-import app from '../../src/worker/index';
+import { app } from '../../src/worker/index';
 import type { WorkerEnv } from '../../src/worker/types';
 import { DEFAULT_CONTENT } from '../../src/content/default';
 import { resetInMemoryStore } from '../../src/worker/lib/db';
@@ -180,6 +180,32 @@ describe('Worker Integration: Admin Authentication & Rate Limiting', () => {
     );
 
     expect(res.status).toBe(403);
+  });
+
+  it('should not accept the legacy admin_session cookie in production', async () => {
+    const loginRes = await app.request(
+      '/api/admin/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.168.1.105'
+        },
+        body: JSON.stringify({ username: 'admin', password: TEST_ADMIN_PASSWORD })
+      },
+      mockEnv
+    );
+    const legacyCookie = (loginRes.headers.get('Set-Cookie') || '').split(';')[0];
+    expect(legacyCookie).toContain('admin_session=');
+
+    const prodEnv: WorkerEnv['Bindings'] = { ...mockEnv, ENVIRONMENT: 'production' };
+    const res = await app.request(
+      'https://northstar.example/api/admin/me',
+      { headers: { Cookie: legacyCookie } },
+      prodEnv
+    );
+
+    expect(res.status).toBe(401);
   });
 
   it('POST /api/admin/login should trigger 429 Too Many Requests after 5 consecutive failures', async () => {

@@ -88,7 +88,8 @@ authRouter.post('/logout', (c) => {
     return c.json({ error: 'Cross-origin request rejected' }, 403);
   }
 
-  // Delete both names so sessions survive the migration to __Host- cookies.
+  // Clear both names. The legacy cookie is no longer accepted for auth, but
+  // deleting it removes stale browser state after the migration.
   const isSecure = c.env.ENVIRONMENT === 'production';
   const cookieOptions = {
     path: '/',

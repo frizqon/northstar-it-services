@@ -2,26 +2,12 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { WorkerEnv, AuthResult } from '../types';
-import {
-  ADMIN_SESSION_COOKIE,
-  ADMIN_SESSION_COOKIE_PROD,
-  getAdminSessionCookieName,
-  isLocalDev
-} from '../lib/security';
+import { getAdminSessionCookieName, isLocalDev } from '../lib/security';
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 function readSessionToken(c: Context<WorkerEnv>): string | undefined {
-  const primaryName = getAdminSessionCookieName(c);
-  const primary = getCookie(c, primaryName);
-  if (primary) return primary;
-
-  // Accept the legacy cookie only during the transition to __Host- cookies.
-  if (primaryName === ADMIN_SESSION_COOKIE_PROD) {
-    return getCookie(c, ADMIN_SESSION_COOKIE);
-  }
-
-  return undefined;
+  return getCookie(c, getAdminSessionCookieName(c));
 }
 
 export async function checkAdminAuth(c: Context<WorkerEnv>): Promise<AuthResult> {

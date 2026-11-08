@@ -10,6 +10,7 @@ import { authRouter } from './routes/auth';
 import { contentRouter } from './routes/content';
 import { mediaRouter } from './routes/media';
 import { contactRouter } from './routes/contact';
+import { purgeExpiredContactMessages } from './lib/db';
 
 const app = new Hono<WorkerEnv>();
 
@@ -60,4 +61,19 @@ app.notFound((c) => {
   return c.env.ASSETS.fetch(c.req.raw);
 });
 
-export default app;
+export { app };
+
+export default {
+  fetch: app.fetch.bind(app),
+  async scheduled(_controller: unknown, env: WorkerEnv['Bindings']): Promise<void> {
+    try {
+      const deleted = await purgeExpiredContactMessages(
+        env,
+        env.ENVIRONMENT === 'development'
+      );
+      console.log(JSON.stringify({ event: 'contact_retention_completed', deleted }));
+    } catch (error) {
+      logError('contact_retention_failed', error);
+    }
+  }
+};

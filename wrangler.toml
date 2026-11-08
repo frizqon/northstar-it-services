@@ -10,6 +10,9 @@ run_worker_first = ["/api/*"]
 [observability]
 enabled = true
 
+[triggers]
+crons = ["0 3 * * *"]
+
 [vars]
 ENVIRONMENT = "production"
 

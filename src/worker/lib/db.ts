@@ -1,6 +1,7 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { DEFAULT_CONTENT, type SiteContent } from '../../content/default';
 import { validateSiteContent } from '../../content/validate';
+import { isExpiredForRetention } from './retention';
 import type {
   WorkerEnv,
   ContactMessage,
@@ -18,6 +19,21 @@ let inMemoryContent: SiteContent = structuredClone(DEFAULT_CONTENT);
 let inMemoryContentUpdatedAt: string | null = null;
 let inMemoryMessages: ContactMessage[] = [];
 let nextMessageId = 1;
+
+let cachedSql: NeonQueryFunction<false, false> | null = null;
+let cachedSqlUrl: string | null = null;
+
+/**
+ * Reuses one Neon client per isolate. Creating a client per request adds
+ * avoidable setup work and loses the driver's internal connection state.
+ */
+function getSql(databaseUrl: string): NeonQueryFunction<false, false> {
+  if (!cachedSql || cachedSqlUrl !== databaseUrl) {
+    cachedSql = neon(databaseUrl);
+    cachedSqlUrl = databaseUrl;
+  }
+  return cachedSql;
+}
 
 export function resetInMemoryStore(): void {
   inMemoryContent = structuredClone(DEFAULT_CONTENT);
@@ -93,7 +109,7 @@ export async function getSiteContent(
     throw new Error('DATABASE_URL is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   const rows = await sql`SELECT content, updated_at FROM public.site_content WHERE id = 1 LIMIT 1`;
   const row = rows[0] as { content?: unknown; updated_at?: unknown } | undefined;
   const rawContent = row?.content;
@@ -135,7 +151,7 @@ export async function saveSiteContent(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
 
   if (expectedUpdatedAt === undefined) {
     // Legacy clients without a precondition keep last-write-wins behaviour.
@@ -201,7 +217,7 @@ export async function saveContactMessage(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   const rows = await sql`
     INSERT INTO public.contact_messages (name, email, message, status, created_at, updated_at)
     VALUES (${input.name}, ${input.email}, ${input.message}, 'unread', now(), now())
@@ -229,7 +245,7 @@ export async function getContactMessages(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   if (statusFilter && statusFilter !== 'all') {
     const rows = await sql`
       SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
@@ -274,7 +290,7 @@ export async function getContactMessageStats(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   const rows = await sql`
     SELECT status, count(*)::int as count
     FROM public.contact_messages
@@ -335,7 +351,7 @@ export async function updateContactMessageStatus(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   const rows = await sql`
     UPDATE public.contact_messages
     SET status = ${status},
@@ -369,9 +385,55 @@ export async function deleteContactMessage(
     throw new Error('Database is not configured');
   }
 
-  const sql = neon(env.DATABASE_URL);
+  const sql = getSql(env.DATABASE_URL);
   const rows = await sql`
     DELETE FROM public.contact_messages WHERE id = ${id} RETURNING id
   `;
   return rows.length > 0;
+}
+
+const RETENTION_BATCH_SIZE = 1000;
+const RETENTION_MAX_BATCHES = 10;
+
+/**
+ * Deletes messages outside the documented retention window in bounded batches.
+ * Replied messages expire six months after `replied_at`; unresolved messages
+ * expire twelve months after `created_at`.
+ */
+export async function purgeExpiredContactMessages(
+  env: WorkerEnv['Bindings'],
+  isLocal: boolean
+): Promise<number> {
+  if (!env.DATABASE_URL) {
+    if (isLocal && env.DEV_AUTH_BYPASS === 'true') {
+      const before = inMemoryMessages.length;
+      inMemoryMessages = inMemoryMessages.filter((message) => !isExpiredForRetention(message));
+      return before - inMemoryMessages.length;
+    }
+    throw new Error('Database is not configured');
+  }
+
+  const sql = getSql(env.DATABASE_URL);
+  let deleted = 0;
+
+  for (let batch = 0; batch < RETENTION_MAX_BATCHES; batch++) {
+    const rows = await sql`
+      WITH expired AS (
+        SELECT id
+        FROM public.contact_messages
+        WHERE (status = 'replied' AND replied_at < now() - interval '6 months')
+           OR (status <> 'replied' AND created_at < now() - interval '12 months')
+        ORDER BY created_at
+        LIMIT ${RETENTION_BATCH_SIZE}
+      )
+      DELETE FROM public.contact_messages
+      WHERE id IN (SELECT id FROM expired)
+      RETURNING id
+    `;
+
+    deleted += rows.length;
+    if (rows.length < RETENTION_BATCH_SIZE) break;
+  }
+
+  return deleted;
 }

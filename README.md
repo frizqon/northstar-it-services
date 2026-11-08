@@ -208,7 +208,7 @@ npm run dev
 2. Sign in using your `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 3. Edit content across **Overview**, **Hero**, **Services**, **Projects**, **About**, and **Contact & SEO**.
 4. Review inbound contact messages in the **Messages** tab and update their status.
-5. Upload project images directly (JPEG, PNG, WebP, AVIF up to 8 MB) via secure signed POST forms.
+5. Upload project images directly (JPEG, PNG, WebP, AVIF up to 8 MB) via secure signed POST forms. Large images are downscaled in the browser before upload.
 6. Click **Save changes** to persist changes immediately to Neon Postgres.
 7. Click **Sign out** to invalidate the session cookie.
 
@@ -218,7 +218,7 @@ npm run dev
 
 - **Host Header Spoofing Protected**: Environment mode strictly relies on explicit `ENVIRONMENT` binding (`wrangler.toml` enforces `production`).
 - **Timing-Safe Auth**: Admin password verification uses constant-time string comparison (`timingSafeEqual`).
-- **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain) and still accepts the legacy cookie name only during migration.
+- **Hardened Admin Session**: JWT sessions expire after 12 hours. Production uses the `__Host-admin_session` cookie prefix (Secure, Path=/, no Domain). The legacy `admin_session` cookie is no longer accepted.
 - **Rate Limiting**: `/api/admin/login` enforces a 5-failed-attempts per 15-minute window per IP. The built-in limiter is per Worker isolate with TTL pruning; add a Cloudflare Rate Limiting rule for global enforcement.
 - **Turnstile Contact Protection**: Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker variables/secrets to require a Cloudflare Turnstile challenge on `/api/contact`. When unset, the form falls back to the existing rate limiter.
 - **CMS Rebuild Hook**: Set `GITHUB_DISPATCH_TOKEN` and `GITHUB_REPO` to trigger a `repository_dispatch` rebuild after each CMS save. This keeps build-time SEO metadata, OpenGraph tags, and the static HTML shell in sync with Neon content.

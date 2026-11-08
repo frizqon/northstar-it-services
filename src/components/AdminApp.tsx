@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { DEFAULT_CONTENT, type Service, type SiteContent } from '../content/default';
 import { validateSiteContent } from '../content/validate';
+import { prepareImageForUpload } from '../utils/image';
 import type { ContactMessage, ContactMessageStats, MessageStatus } from '../worker/types';
 import { ToastNotice } from './ui/ToastNotice';
 import { LoginView } from './admin/LoginView';
@@ -267,13 +268,16 @@ export default function AdminApp() {
     setUploadingIndex(index);
     setNotice(null);
     try {
+      const uploadFile = await prepareImageForUpload(file);
+      const optimized = uploadFile !== file;
+
       const response = await fetch('/api/admin/media/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size
+          fileName: uploadFile.name,
+          contentType: uploadFile.type,
+          size: uploadFile.size
         })
       });
 
@@ -291,7 +295,7 @@ export default function AdminApp() {
       Object.entries(ticket.fields as Record<string, string>).forEach(([key, value]) =>
         form.append(key, value)
       );
-      form.append('file', file);
+      form.append('file', uploadFile);
 
       const uploaded = await fetch(ticket.uploadUrl, { method: 'POST', body: form });
       if (!uploaded.ok) {
@@ -317,7 +321,9 @@ export default function AdminApp() {
       update((d) => {
         d.projects[index].imageUrl = verified.publicUrl;
       });
-      showNotice('Image uploaded. Save changes to publish it on the website.');
+      showNotice(
+        `Image uploaded${optimized ? ' and optimized' : ''}. Save changes to publish it on the website.`
+      );
     } catch (error) {
       showNotice(error instanceof Error ? error.message : 'Image upload failed.', 'error');
     } finally {

@@ -36,12 +36,12 @@ Work items derived from the senior code review. Keep this list current as items 
 - [x] Document contact message retention.
 - [x] Replace weak `.dev.vars.example` placeholders with generation hints.
 
-## Deferred / owner decision
+## Follow-ups completed
 
-- [ ] Remove the legacy `admin_session` cookie after the migration window.
-- [ ] Resize/compress uploaded images before publishing (or use Cloudflare Images).
-- [ ] Cache `neon()` and `S3Client` instances per isolate.
-- [ ] Verify the gitleaks download checksum in CI.
-- [ ] Add a `LICENSE` file.
-- [ ] Run E2E on Firefox and WebKit.
-- [ ] Add a retention job for `contact_messages` (policy documented only).
+- [x] Remove the legacy `admin_session` cookie after the migration window.
+- [x] Resize/compress uploaded images before publishing (browser-side WebP downscale).
+- [x] Cache `neon()` and `S3Client` instances per isolate.
+- [x] Verify the gitleaks download checksum in CI.
+- [x] Add a `LICENSE` file (MIT).
+- [x] Run E2E on Firefox and WebKit.
+- [x] Add a retention job for `contact_messages` (daily cron, batched deletes).
