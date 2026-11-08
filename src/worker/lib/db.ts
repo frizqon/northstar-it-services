@@ -173,7 +173,7 @@ export async function getSiteContent(
   }
 
   const sql = neon(env.DATABASE_URL);
-  const rows = await sql`SELECT content, updated_at FROM site_content WHERE id = 1 LIMIT 1`;
+  const rows = await sql`SELECT content, updated_at FROM public.site_content WHERE id = 1 LIMIT 1`;
   const row = rows[0] as { content?: SiteContent; updated_at?: unknown } | undefined;
   return {
     content: row?.content ?? DEFAULT_CONTENT,
@@ -197,7 +197,7 @@ export async function saveSiteContent(
 
   const sql = neon(env.DATABASE_URL);
   await sql`
-    INSERT INTO site_content (id, content, updated_at)
+    INSERT INTO public.site_content (id, content, updated_at)
     VALUES (1, ${JSON.stringify(content)}::jsonb, now())
     ON CONFLICT (id) DO UPDATE SET
       content = EXCLUDED.content,
@@ -233,7 +233,7 @@ export async function saveContactMessage(
 
   const sql = neon(env.DATABASE_URL);
   const rows = await sql`
-    INSERT INTO contact_messages (name, email, message, status, created_at, updated_at)
+    INSERT INTO public.contact_messages (name, email, message, status, created_at, updated_at)
     VALUES (${input.name}, ${input.email}, ${input.message}, 'unread', now(), now())
     RETURNING id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
   `;
@@ -260,7 +260,7 @@ export async function getContactMessages(
   if (statusFilter && statusFilter !== 'all') {
     const rows = await sql`
       SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
-      FROM contact_messages
+      FROM public.contact_messages
       WHERE status = ${statusFilter}
       ORDER BY created_at DESC
     `;
@@ -269,7 +269,7 @@ export async function getContactMessages(
 
   const rows = await sql`
     SELECT id, name, email, message, status, read_at, reply_notes, replied_at, created_at, updated_at
-    FROM contact_messages
+    FROM public.contact_messages
     ORDER BY created_at DESC
   `;
   return rows as unknown as ContactMessage[];
@@ -302,7 +302,7 @@ export async function getContactMessageStats(
   const sql = neon(env.DATABASE_URL);
   const rows = await sql`
     SELECT status, count(*)::int as count
-    FROM contact_messages
+    FROM public.contact_messages
     GROUP BY status
   `;
 
@@ -362,7 +362,7 @@ export async function updateContactMessageStatus(
 
   const sql = neon(env.DATABASE_URL);
   const rows = await sql`
-    UPDATE contact_messages
+    UPDATE public.contact_messages
     SET status = ${status},
         read_at = CASE
           WHEN ${status} = 'read' THEN COALESCE(read_at, now())
@@ -396,7 +396,7 @@ export async function deleteContactMessage(
 
   const sql = neon(env.DATABASE_URL);
   const rows = await sql`
-    DELETE FROM contact_messages WHERE id = ${id} RETURNING id
+    DELETE FROM public.contact_messages WHERE id = ${id} RETURNING id
   `;
   return rows.length > 0;
 }
