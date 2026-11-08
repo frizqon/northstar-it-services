@@ -115,6 +115,18 @@ The Worker no longer creates or alters tables at runtime. Run the schema before 
 
 ### 4. Create Local Development Variables (`.dev.vars`)
 
+Use a dedicated Neon branch for local development. Never point `DATABASE_URL` at the production `main` branch.
+
+```sh
+# Create a local branch from main
+neonctl branches create --name local-dev
+
+# Get the pooled connection string for the local branch
+neonctl connection-string local-dev --pooled
+```
+
+Use the local branch's S3 endpoint for `AWS_ENDPOINT_URL_S3` as well, not the production branch endpoint.
+
 Create `.dev.vars` in your repository root:
 
 ```ini
